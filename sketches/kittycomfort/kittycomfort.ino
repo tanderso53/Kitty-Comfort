@@ -12,7 +12,7 @@ class AmmoniaSensor
 	bool _init = 0;
 	unsigned long _lastRead = 0;
 	unsigned long _lastCheck = 0;
-	unsigned long _warmUpTime = 200000;
+	unsigned long _warmUpTime = 86400000; // 24 hrs
 
  protected:
 	void updateTimer(unsigned long& timer);
