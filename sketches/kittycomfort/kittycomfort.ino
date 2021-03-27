@@ -1,6 +1,7 @@
 // Microcontroller project to maintain
 // optimal housecat comfort
 
+#include <SoftwareSerial.h>
 class AmmoniaSensor
 {
  private:
@@ -101,23 +102,70 @@ bool AmmoniaSensor::isWarmedUp()
 	else return 0;
 }
 
+bool matchCommand(char* match, char* source)
+{
+	for (int i = 0; i < 3; i++)
+		if (source[i] != match[i])
+				return 0;
+	return 1;
+}
+
+void toggle(bool& reg)
+{
+	if (reg) reg = 0;
+	else reg = 1;
+}
+
 // Globals
-int apin = A0;
-int dpin = 13;
-unsigned long readoutDelay = 500; // in ms
+const int apin = A0;
+const int dpin = 13;
+const int btrx = 4;
+const int bttx = 6;
+bool progMode = 0;
+char readBuffer[8];
+//char transBuffer[64];
+unsigned long readoutDelay = 10000; // in ms
 AmmoniaSensor as(apin, dpin);
+SoftwareSerial bt(btrx, bttx);
 
 void setup()
 {
 	as.init();
 	Serial.begin(9600);
 	Serial.println(as.readCounts());
+
+	// Set up bluetooth
+	bt.begin(115200);
 }
 
 void loop()
 {
-	if (millis() > as.lastRead() + readoutDelay)
+	// Check if there is a command in the serial buffer
+	if (Serial.available())
 		{
-			Serial.println(as.readCounts());
+			if (Serial.readBytesUntil('\n', readBuffer, 8) > 3)
+				{
+					char progCmd[] = {'p', 'r', 'o'};
+					if (matchCommand(progCmd, readBuffer))
+						toggle(progMode);
+				}
+		}
+
+	if (progMode)
+		{
+			if (Serial.available() && bt.available());
+		}
+						
+	// Read and output data
+	else if (millis() > as.lastRead() + readoutDelay)
+		{
+			// If time to read, read the ammonia
+			double ammCounts = as.readCounts();
+
+			// If USB is attached, log to USB
+			if (Serial.available()) Serial.println(ammCounts);
+
+			// Print to bluetooth if functional
+			if (bt.available()) bt.println(ammCounts);
 		}
 }
