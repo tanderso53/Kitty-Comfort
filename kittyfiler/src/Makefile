@@ -1,7 +1,7 @@
 # GNU Makefile
 CPP		=	clang++
 CFLAGS		=	-std=c++17 -Wall
-LFLAGS		=	-lc
+LFLAGS		=	-lc -ljsoncpp
 APP		=	kittyfiler
 .PHONY: all clean
 

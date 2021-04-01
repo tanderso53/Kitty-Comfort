@@ -1,8 +1,9 @@
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <string>
-#include <functional>
-//#include <json/json.h>
+#include <sstream>
+#include <json/json.h>
 #include <termios.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -42,6 +43,37 @@ namespace Filer
     int readUntil(std::ostream& buffer, char eor);
     std::string getErrorString();
   };
+
+  int jsonToCSV(std::istream& jsonstring,
+		std::string filename,
+		std::ostream& err = std::cerr)
+  {
+    try
+      {
+	Json::Value v;
+	std::ofstream ofile;
+	jsonstring >> v;
+	Json::Value& data = v["data"];
+	ofile.open(filename.c_str(),
+		   std::ofstream::out | std::ofstream::app);
+	for (uint i = 0; i < data.size(); i++)
+	  {
+	    Json::Value& d = data[i];
+	    ofile << v["sentmillis"] << ","
+		  << d["timemillis"] << ","
+		  << d["value"] << ","
+		  << d["iswarmedup"] << std::endl;
+	  }
+	ofile.close();
+      }
+    catch (Json::Exception& e)
+      {
+	err << "Failed to parse Json string with "
+	    << e.what() << std::endl;
+	return -1;
+      }
+    return 0;
+  }
 
   void Connection::_setDefaultOptions()
   {
@@ -222,7 +254,10 @@ int main(int argc, char** argv)
   // Use signal to setup handling of signals
   Handler::_outptr = &std::cerr;
   signal(SIGHUP, Handler::signalTerminate);
-  signal(SIGINT, Handler::signalTerminate);
+  signal(SIGINT, Handler::signalBreak);
+  signal(SIGTERM, Handler::signalTerminate);
+
+  // If there are arguments given, try to log data
   if (argc > 1)
     {
       std::string special = argv[1];
@@ -230,6 +265,7 @@ int main(int argc, char** argv)
       try
 	{
 	  c = new Filer::Connection(special.c_str());
+	  std::stringstream ss;
 
 	  struct pollfd pfd;
 	  pfd.fd = c->fd();
@@ -241,7 +277,9 @@ int main(int argc, char** argv)
 	      pollStat = poll(&pfd, 1, 60000);
 	      if (pollStat > 0)
 		{
-		  c->readUntil(std::cout, '\n');
+		  c->readUntil(ss, '\n');
+		  std::cout << ss.str() << std::endl;
+		  if (argc > 2) Filer::jsonToCSV(ss, argv[2]);
 		}
 	    }
 	}
