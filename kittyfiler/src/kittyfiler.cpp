@@ -12,6 +12,7 @@
 #include <string.h>
 #include <poll.h>
 #include <signal.h>
+#include <pqxx/pqxx>
 
 namespace Filer
 {
@@ -44,18 +45,42 @@ namespace Filer
     std::string getErrorString();
   };
 
+  struct auth
+  {
+  public:
+    std::string database = "postgres";
+    std::string host = "localhost";
+    std::string user = "postgres";;
+    std::string password = "";
+  };
+
+  class Database
+  {
+  public:
+    typedef std::vector<std::string> svector;
+    Database();
+    explicit Database(auth* a);
+    void init(auth* a);
+    void clear();
+    int append(const std::string& table, std::istream& data);
+    bool tableExists(const std::string& table);
+    int createTable(std::string table, svector headers,
+		    svector types);
+
+  private:
+    auth* _auth = NULL;
+    std::string _conString();
+  };
+
   int jsonToCSV(std::istream& jsonstring,
-		std::string filename,
+		std::ostream& ofile,
 		std::ostream& err = std::cerr)
   {
     try
       {
 	Json::Value v;
-	std::ofstream ofile;
 	jsonstring >> v;
 	Json::Value& data = v["data"];
-	ofile.open(filename.c_str(),
-		   std::ofstream::out | std::ofstream::app);
 	for (uint i = 0; i < data.size(); i++)
 	  {
 	    Json::Value& d = data[i];
@@ -64,7 +89,6 @@ namespace Filer
 		  << d["value"] << ","
 		  << d["iswarmedup"] << std::endl;
 	  }
-	ofile.close();
       }
     catch (Json::Exception& e)
       {
@@ -209,6 +233,137 @@ namespace Filer
   std::string Connection::getErrorString()
   {
     return std::string(strerror(_lastError));
+  }
+
+  Database::Database()
+  {
+  }
+
+  Database::Database(auth* a)
+  {
+    init(a);
+  }
+
+  void Database::init(auth* a)
+  {
+    if (_auth) clear();
+    _auth = a;
+  }
+
+  void Database::clear()
+  {
+    if (_auth) _auth = NULL;
+  }
+
+  int Database::append(const std::string& table, std::istream& data)
+  {
+    if (!tableExists(table))
+      {
+	std::string e;
+	e += "In Database::append: Table ";
+	e += table;
+	e += " does not exist.";
+	throw std::runtime_error(e);
+      }
+    pqxx::connection c(_conString());
+    pqxx::work w(c);
+    std::vector<svector> dv;
+
+    // Parse the incoming stream
+    while (data.eof())
+      {
+	char s[1] = {'\0'};
+	char sep = ',';
+	dv.push_back(svector(1));
+	svector& sdv = dv.back();
+	while (s[0] != '\n')
+	  {
+	    data.readsome(s, 1);
+	    if (s[0] != sep) sdv.back().push_back(s[0]);
+	    else sdv.push_back("");
+	  }
+      }
+
+    for (auto it = dv.begin(); it != dv.end(); it++)
+      {
+	svector& sdv = *it;
+	// Define the insert query
+	std::string query;
+	query += "INSERT INTO ";
+	query += table;
+	query += " VALUES (";
+	for (auto itt = sdv.begin(); itt != sdv.end(); itt++)
+	  {
+	    query += *itt;
+	    if (itt != sdv.end() -1) query += ',';
+	  }
+	query += ")";
+
+	// Perform the query
+	w.exec(query);
+      }
+    w.commit();
+
+    // Return number of rows sent
+    return dv.size();
+  }
+
+  bool Database::tableExists(const std::string& table)
+  {
+    pqxx::connection c(_conString());
+    pqxx::work w(c);
+    std::string query;
+    query += "SELECT table_name FROM information_schema.tables ";
+    query += "WHERE table_name='";
+    query += table;
+    query += "'";
+    pqxx::result r = w.exec(query);
+    if (!r.empty()) return 1;
+    return 0;
+  }
+
+  int Database::createTable(std::string table, svector headers,
+			    svector types)
+  {
+    if (tableExists(table)) return -1;
+    pqxx::connection c(_conString());
+    pqxx::work w(c);
+
+    // Build query
+    std::string query = "CREATE TABLE ";
+    query += table;
+    query += " (";
+    for (uint i = 0; i < headers.size(); i++)
+      {
+	query += headers[i];
+	query += " ";
+	query += types[i];
+	if (i < headers.size() - 1) query += ",";
+      }
+    query += ")";
+
+    // Execute table creation
+    w.exec(query);
+    w.commit();
+
+    // Return 0 on success
+    return 0;
+  }
+
+  std::string Database::_conString()
+  {
+    std::string cs = "host=";
+    cs += _auth->host;
+    cs += " database=";
+    cs += _auth->database;
+    cs += " user=";
+    cs += _auth->user;
+    if (!_auth->password.empty())
+      {
+	cs += " password=";
+	cs += _auth->password;
+      }
+    return cs;
   }
 }
 
@@ -496,8 +651,8 @@ int main(int argc, char** argv)
   try
     {
       // Parse CLI arguments
-      char oaList[1] = {'f'};
-      Cli::Args al(argc, argv, oaList, 1);
+      char oaList[] = {'f','h','d','u','P'};
+      Cli::Args al(argc, argv, oaList, sizeof(oaList)/sizeof(oaList[0]));
 
       // If there are arguments given, try to log data
       if (al.size() == 1 && !Handler::terminateP())
@@ -523,7 +678,36 @@ int main(int argc, char** argv)
 		      if (al.option('p'))
 			std::cout << ss.str() << std::endl;
 		      if (al.option('f'))
-			Filer::jsonToCSV(ss, al.optarg('f'));
+			{
+			  std::ofstream ofile;
+			  ofile.open(al.optarg('f').c_str(),
+				     std::ofstream::out | std::ofstream::app);
+			  Filer::jsonToCSV(ss, ofile);
+			}
+		      if (al.option('b'))
+			{
+			  std::stringstream sparsed;
+			  Filer::auth a;
+			  if (al.option('d')) a.database = al.optarg('d');
+			  if (al.option('h')) a.host = al.optarg('h');
+			  if (al.option('u')) a.user = al.optarg('u');
+			  if (al.option('P')) a.password = al.optarg('P');
+			  ss.seekg(0);
+			  Filer::jsonToCSV(ss, sparsed);
+			  Filer::Database db(&a);
+			  std::string tablename = "kittyfiler.ammonia";
+			  if (!db.tableExists(tablename))
+			    db.createTable(tablename,
+					   {std::string("sentmillis"),
+					    std::string("timemillis"),
+					    std::string("value"),
+					    std::string("warmedup")},
+					   {std::string("integer"),
+					    std::string("integer"),
+					    std::string("numeric"),
+					    std::string("bool")});
+			  db.append(tablename, sparsed);
+			}
 		    }
 		}
 	    }
