@@ -290,10 +290,7 @@ namespace Filer
       }
 
     // If an empty element is still on the vector, remove it
-    for (auto rit = dv.rbegin();
-	 rit->at(0).empty() && rit != dv.rend();
-	 rit++)
-      dv.pop_back();
+    if (dv.back().at(0).empty()) dv.pop_back();
 
     for (auto it = dv.begin(); it != dv.end(); it++)
       {
