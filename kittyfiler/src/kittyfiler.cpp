@@ -294,8 +294,6 @@ namespace Filer
 	 rit->at(0).empty() && rit != dv.rend();
 	 rit++)
       dv.pop_back();
-    svector& checkstuff = dv.back();
-    int i = 0;
 
     for (auto it = dv.begin(); it != dv.end(); it++)
       {
