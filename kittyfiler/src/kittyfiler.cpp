@@ -285,9 +285,6 @@ namespace Filer
 	    else if (s == sep) sdv.push_back("");
 	    data.get(s);
 	  }
-	for (auto it = sdv.begin(); it != sdv.end(); it++)
-	  std::cerr << *it << '-' << it->length() << ",";
-	std::cerr << '-' << sdv.size() << std::endl;
 	if (!data.eof()) dv.push_back(svector(1));
 	// data.get(s);
       }
@@ -299,13 +296,6 @@ namespace Filer
       dv.pop_back();
     svector& checkstuff = dv.back();
     int i = 0;
-    for (auto it = checkstuff.begin(); it != checkstuff.end(); it++)
-      {
-	std::cerr << i << "." << '\t';
-	for (auto itt = it->begin(); itt != it->end(); itt++)
-	  std::cerr << int(*itt) << ',';
-	std::cerr << '-' << it->size() << std::endl;
-      }
 
     for (auto it = dv.begin(); it != dv.end(); it++)
       {
