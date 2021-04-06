@@ -50,7 +50,8 @@ namespace Filer
   public:
     std::string database = "postgres";
     std::string host = "localhost";
-    std::string user = "postgres";;
+    std::string user = "postgres";
+    std::string port = "5432";
     std::string password = "";
   };
 
@@ -268,20 +269,42 @@ namespace Filer
     pqxx::connection c(_conString());
     pqxx::work w(c);
     std::vector<svector> dv;
+    dv.push_back(svector(1));
 
     // Parse the incoming stream
-    while (data.eof())
+    while (!data.eof())
       {
-	char s[1] = {'\0'};
+	char s = '\0';
 	char sep = ',';
-	dv.push_back(svector(1));
 	svector& sdv = dv.back();
-	while (s[0] != '\n')
+	while (s != '\n' && !data.eof())
 	  {
-	    data.readsome(s, 1);
-	    if (s[0] != sep) sdv.back().push_back(s[0]);
-	    else sdv.push_back("");
+	    if (s == '\0') data.get(s);
+	    if (s != sep && s != '\n' && s != '\0')
+	      sdv.back().push_back(s);
+	    else if (s == sep) sdv.push_back("");
+	    data.get(s);
 	  }
+	for (auto it = sdv.begin(); it != sdv.end(); it++)
+	  std::cerr << *it << '-' << it->length() << ",";
+	std::cerr << '-' << sdv.size() << std::endl;
+	if (!data.eof()) dv.push_back(svector(1));
+	// data.get(s);
+      }
+
+    // If an empty element is still on the vector, remove it
+    for (auto rit = dv.rbegin();
+	 rit->at(0).empty() && rit != dv.rend();
+	 rit++)
+      dv.pop_back();
+    svector& checkstuff = dv.back();
+    int i = 0;
+    for (auto it = checkstuff.begin(); it != checkstuff.end(); it++)
+      {
+	std::cerr << i << "." << '\t';
+	for (auto itt = it->begin(); itt != it->end(); itt++)
+	  std::cerr << int(*itt) << ',';
+	std::cerr << '-' << it->size() << std::endl;
       }
 
     for (auto it = dv.begin(); it != dv.end(); it++)
@@ -315,9 +338,10 @@ namespace Filer
     std::string query;
     query += "SELECT table_name FROM information_schema.tables ";
     query += "WHERE table_name='";
-    query += table;
+    query += table.substr(table.find_first_of('.')+1);
     query += "'";
     pqxx::result r = w.exec(query);
+    w.commit();
     if (!r.empty()) return 1;
     return 0;
   }
@@ -354,7 +378,7 @@ namespace Filer
   {
     std::string cs = "host=";
     cs += _auth->host;
-    cs += " database=";
+    cs += " dbname=";
     cs += _auth->database;
     cs += " user=";
     cs += _auth->user;
@@ -708,6 +732,8 @@ int main(int argc, char** argv)
 					    std::string("bool")});
 			  db.append(tablename, sparsed);
 			}
+		      std::stringstream tss;
+		      ss.swap(tss);
 		    }
 		}
 	    }
