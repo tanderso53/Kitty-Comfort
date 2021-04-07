@@ -69,7 +69,9 @@ namespace Filer
 	query += " VALUES (";
 	for (auto itt = sdv.begin(); itt != sdv.end(); itt++)
 	  {
+	    query += "'";
 	    query += *itt;
+	    query += "'";
 	    if (itt != sdv.end() -1) query += ',';
 	  }
 	query += ")";
