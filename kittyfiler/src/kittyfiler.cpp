@@ -9,6 +9,7 @@
 #include <sstream>
 #include <poll.h>
 #include <signal.h>
+#include <ctime>
 
 int main(int argc, char** argv)
 {
@@ -47,6 +48,14 @@ int main(int argc, char** argv)
 		  if (pollStat > 0)
 		    {
 		      c->readUntil(ss, '\n');
+		      time_t tt;
+		      struct tm * ttm;
+		      size_t tbsize = 30;
+		      char readTime[tbsize];
+		      time (&tt);
+		      ttm = localtime(&tt);
+		      strftime(readTime, tbsize, "%m/%d/%Y %T %Z", ttm);
+		      std::string stringTime = readTime;
 		      if (al.option('p'))
 			std::cout << ss.str() << std::endl;
 		      if (al.option('f'))
@@ -54,7 +63,7 @@ int main(int argc, char** argv)
 			  std::ofstream ofile;
 			  ofile.open(al.optarg('f').c_str(),
 				     std::ofstream::out | std::ofstream::app);
-			  Filer::jsonToCSV(ss, ofile);
+			  Filer::Conversion::jsonToCSV(ss, ofile);
 			}
 		      if (al.option('b'))
 			{
@@ -65,7 +74,7 @@ int main(int argc, char** argv)
 			  if (al.option('u')) a.user = al.optarg('u');
 			  if (al.option('P')) a.password = al.optarg('P');
 			  ss.seekg(0);
-			  Filer::jsonToCSV(ss, sparsed);
+			  Filer::Conversion::jsonToCSV(ss, sparsed, stringTime);
 			  Filer::Database db(&a);
 			  std::string tablename = "kittyfiler.ammonia";
 			  if (!db.tableExists(tablename))
@@ -73,11 +82,13 @@ int main(int argc, char** argv)
 					   {std::string("sentmillis"),
 					    std::string("timemillis"),
 					    std::string("value"),
-					    std::string("warmedup")},
+					    std::string("warmedup"),
+					    std::string("readtime")},
 					   {std::string("integer"),
 					    std::string("integer"),
 					    std::string("numeric"),
-					    std::string("bool")});
+					    std::string("bool"),
+					    std::string("timestamptz")});
 			  db.append(tablename, sparsed);
 			}
 		      std::stringstream tss;

@@ -6,9 +6,9 @@
 
 namespace Filer
 {
-  int jsonToCSV(std::istream& jsonstring,
-		std::ostream& ofile,
-		std::ostream& err)
+  int Conversion::jsonToCSV(std::istream& jsonstring,
+			    std::ostream& ofile,
+			    std::ostream& err)
   {
     try
       {
@@ -32,6 +32,36 @@ namespace Filer
       }
     return 0;
   }
+
+  int Conversion::jsonToCSV(std::istream& jsonstring,
+			    std::ostream& ofile,
+			    const std::string& readtime,
+			    std::ostream& err)
+  {
+    try
+      {
+	Json::Value v;
+	jsonstring >> v;
+	Json::Value& data = v["data"];
+	for (uint i = 0; i < data.size(); i++)
+	  {
+	    Json::Value& d = data[i];
+	    ofile << v["sentmillis"] << ","
+		  << d["timemillis"] << ","
+		  << d["value"] << ","
+		  << d["iswarmedup"] << ","
+		  << readtime << std::endl;
+	  }
+      }
+    catch (Json::Exception& e)
+      {
+	err << "Failed to parse Json string with "
+	    << e.what() << std::endl;
+	return -1;
+      }
+    return 0;
+  }
+
   void Connection::_setDefaultOptions()
   {
     if (_fd)
