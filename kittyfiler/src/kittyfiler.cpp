@@ -26,7 +26,7 @@ void printUsage(std::ostream& out)
 	       {"<special>"});
   u.addUseCase({'p','b'},
 	       {std::make_pair('f', "<filename>"),
-		std::make_pair('h', "<host>"),
+		std::make_pair('H', "<host>"),
 		std::make_pair('d', "<database>"),
 		std::make_pair('u', "<user>"),
 		std::make_pair('P', "<password>")},
@@ -34,7 +34,7 @@ void printUsage(std::ostream& out)
   u.addOption('p', "print raw json to stdout");
   u.addOption('b', "send data to database. Requires connection options");
   u.addOption('f', "write data as CSV to file <filename>. must be absolute");
-  u.addOption('h', "Hostname for database, only useful with -b");
+  u.addOption('H', "Hostname for database, only useful with -b");
   u.addOption('d', "Database name for database, only useful with -b");
   u.addOption('u', "User name for database, only useful with -b");
   u.addOption('P', "Password for database, only useful with -b");
@@ -56,8 +56,15 @@ int main(int argc, char** argv)
   try
     {
       // Parse CLI arguments
-      char oaList[] = {'f','h','d','u','P'};
+      char oaList[] = {'f','H','d','u','P'};
       Cli::Args al(argc, argv, oaList, sizeof(oaList)/sizeof(oaList[0]));
+
+      // If -h option is given, print usage and exit
+      if (al.option('h'))
+	{
+	  printUsage(std::cout);
+	  return 0;
+	}
 
       // If there are arguments given, try to log data
       if (al.size() == 1 && !Handler::terminateP())
@@ -102,7 +109,7 @@ int main(int argc, char** argv)
 			  std::stringstream sparsed;
 			  Filer::auth a;
 			  if (al.option('d')) a.database = al.optarg('d');
-			  if (al.option('h')) a.host = al.optarg('h');
+			  if (al.option('H')) a.host = al.optarg('H');
 			  if (al.option('u')) a.user = al.optarg('u');
 			  if (al.option('P')) a.password = al.optarg('P');
 			  ss.seekg(0);
