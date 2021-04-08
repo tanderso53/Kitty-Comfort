@@ -11,6 +11,38 @@
 #include <signal.h>
 #include <ctime>
 
+void printUsage(std::ostream& out)
+{
+  // Build usage form
+  Cli::Usage u;
+
+  u.addApp("kittyfiler");
+  std::string desc;
+  desc = "Command line program to read ammonia data from serial port";
+  desc += "and log to stdout, a file, or a database.";
+  u.addDescription(desc);
+  u.addUseCase({'p'},
+	       {std::make_pair('f',"<filename>")},
+	       {"<special>"});
+  u.addUseCase({'p','b'},
+	       {std::make_pair('f', "<filename>"),
+		std::make_pair('h', "<host>"),
+		std::make_pair('d', "<database>"),
+		std::make_pair('u', "<user>"),
+		std::make_pair('P', "<password>")},
+	       {"<special>"});
+  u.addOption('p', "print raw json to stdout");
+  u.addOption('b', "send data to database. Requires connection options");
+  u.addOption('f', "write data as CSV to file <filename>. must be absolute");
+  u.addOption('h', "Hostname for database, only useful with -b");
+  u.addOption('d', "Database name for database, only useful with -b");
+  u.addOption('u', "User name for database, only useful with -b");
+  u.addOption('P', "Password for database, only useful with -b");
+
+  // Print out the usage to given output
+  u.print(out);
+}
+
 int main(int argc, char** argv)
 {
   int exitStatus = 0;
@@ -102,6 +134,10 @@ int main(int argc, char** argv)
 	      std::cout << e.what() << std::endl;
 	      exitStatus = -1;
 	    }
+	}
+      else
+	{
+	  printUsage(std::cout);
 	}
     }
   catch (std::exception& e)

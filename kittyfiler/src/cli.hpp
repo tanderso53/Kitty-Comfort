@@ -65,6 +65,46 @@ namespace Cli
     avector _args;
     omap _optargs;
   };
+
+  class Usage
+  {
+  public:
+    typedef std::vector<char> cvector;
+    typedef std::vector<std::pair<char, std::string>> csvector;
+    typedef std::vector<std::string> svector;
+    typedef std::tuple<cvector,csvector,svector> usecase;
+
+    /// Default constructor with no items described
+    Usage();
+
+    /// Define the name of the app
+    void addApp(const std::string& appname);
+
+    /// Add general description for usage
+    void addDescription(const std::string& desc);
+
+    /// Add a use-case with args and options
+    void addUseCase(const cvector& opts,
+		    const csvector& optargs,
+		    const svector& args);
+
+    /// Add a description for a single-dash option
+    void addOption(char opt, const std::string& description);
+
+    /// Print usage out to ostream
+    void print(std::ostream& out);
+
+  private:
+    std::string _app;
+    cvector _opts;
+    csvector _optargs;
+    svector _args;
+    std::vector<usecase> _usecases;
+    std::string _description;
+    csvector _arglist;
+    const size_t _tab = 4;
+    const size_t _termwidth = 70;
+  };
 }
 
 #endif

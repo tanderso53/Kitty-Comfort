@@ -174,4 +174,73 @@ namespace Cli
       }
     return 0;
   }
+
+  Usage::Usage()
+  {
+  }
+
+  void Usage::addApp(const std::string& appname)
+  {
+    _app = appname;
+  }
+
+  void Usage::addDescription(const std::string& desc)
+  {
+    this->_description = desc;
+  }
+
+  void Usage::addUseCase(const cvector& opts, const csvector& optargs,
+			 const svector& args)
+  {
+    _usecases.push_back(std::make_tuple(opts, optargs, args));
+  }
+
+  void Usage::addOption(char opt, const std::string& description)
+  {
+    _arglist.push_back(std::make_pair(opt, description));
+  }
+
+  void Usage::print(std::ostream& out)
+  {
+    out << "Usage:" << std::endl << std::endl;
+    for (auto it = _usecases.begin(); it != _usecases.end(); it++)
+      {
+	out << _app << " ";
+	cvector& o = std::get<0>(*it);
+	csvector& oa = std::get<1>(*it);
+	svector& a = std::get<2>(*it);
+
+	for (auto itt = o.begin(); itt != o.end(); itt++)
+	  out << '-' << *itt << " ";
+
+	for (auto itt = oa.begin(); itt != oa.end(); itt++)
+	  out << '-' << itt->first << " " << itt->second << " ";
+
+	for (auto itt = a.begin(); itt != a.end(); itt++)
+	  out << *itt << " ";
+
+	out << std::endl << std::endl;
+      }
+
+    out << _description << std::endl << std::endl;
+
+    for (auto it = _arglist.begin(); it != _arglist.end(); it++)
+      {
+	size_t win = _termwidth;
+	out << '\t' << '-' << it->first << '\t';
+	win = win - 2 * _tab;
+	for (auto itt = it->second.begin(); itt != it->second.end();
+	     itt++)
+	  {
+	    if (win == 0)
+	      {
+		out << std::endl << '\t' << '\t';
+		win = _termwidth;
+	      }
+	    out << *itt;
+	    win--;
+	  }
+	out << std::endl << std::endl;
+      }
+  }
 }
