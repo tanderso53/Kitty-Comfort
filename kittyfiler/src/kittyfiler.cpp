@@ -1,3 +1,44 @@
+// ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// +                                                                +
+// +                           KITTYFILER                           +
+// +                 A program to file cat data into                +
+// +                      a Postgresql database                     +
+// +                                                                +
+// ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+// Copyright 2021 Tyler J. Anderson
+
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
+
+// 1. Redistributions of source code must retain the above copyright
+// notice, this list of conditions and the following disclaimer.
+
+// 2. Redistributions in binary form must reproduce the above
+// copyright notice, this list of conditions and the following
+// disclaimer in the documentation and/or other materials provided
+// with the distribution.
+
+// 3. Neither the name of the copyright holder nor the names of its
+// contributors may be used to endorse or promote products derived
+// from this software without specific prior written permission.
+
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+// FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+// COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+// INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+// (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+// HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+// STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+// OF THE POSSIBILITY OF SUCH DAMAGE.
+
+// kittyfiler.cpp
+
 #include "connection.hpp"
 #include "database.hpp"
 #include "handler.hpp"
@@ -10,6 +51,7 @@
 #include <poll.h>
 #include <signal.h>
 #include <ctime>
+#include <filesystem>
 
 void printUsage(std::ostream& out)
 {
@@ -31,6 +73,7 @@ void printUsage(std::ostream& out)
 		std::make_pair('u', "<user>"),
 		std::make_pair('P', "<password>")},
 	       {"<special>"});
+  u.addUseCase({'h','L'}, {}, {});
   u.addOption('p', "print raw json to stdout");
   u.addOption('b', "send data to database. Requires connection options");
   u.addOption('f', "write data as CSV to file <filename>. must be absolute");
@@ -38,9 +81,28 @@ void printUsage(std::ostream& out)
   u.addOption('d', "Database name for database, only useful with -b");
   u.addOption('u', "User name for database, only useful with -b");
   u.addOption('P', "Password for database, only useful with -b");
+  u.addOption('h', "Print this help message, then exit");
+  u.addOption('L', "Print licensing information, then exit");
 
   // Print out the usage to given output
   u.print(out);
+}
+
+void printLicense(std::ostream& out = std::cout)
+{
+  std::ifstream lfile;
+  std::filesystem::path p = "../../LICENSE";
+  lfile.open(std::filesystem::canonical(p));
+
+  while (!lfile.eof())
+    {
+      char license[128];
+      lfile.getline(license, 128);
+      out << license << std::endl;
+    }
+
+  out << std::endl;
+  lfile.close();
 }
 
 int main(int argc, char** argv)
@@ -63,6 +125,13 @@ int main(int argc, char** argv)
       if (al.option('h'))
 	{
 	  printUsage(std::cout);
+	  return 0;
+	}
+
+      // If -L option is given, print license information
+      if (al.option('L'))
+	{
+	  printLicense();
 	  return 0;
 	}
 
