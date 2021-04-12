@@ -185,19 +185,22 @@ int main(int argc, char** argv)
 			  Filer::Conversion::jsonToCSV(ss, sparsed, stringTime);
 			  Filer::Database db(&a);
 			  std::string tablename = "kittyfiler.ammonia";
+
+			  Filer::Database::svector headers =
+			    {std::string("sentmillis"),
+			     std::string("timemillis"),
+			     std::string("value"),
+			     std::string("warmedup"),
+			     std::string("readtime")};
+			  Filer::Database::svector types =
+			    {std::string("bigint"),
+			     std::string("bigint"),
+			     std::string("numeric"),
+			     std::string("bool"),
+			     std::string("timestamptz")};
 			  if (!db.tableExists(tablename))
-			    db.createTable(tablename,
-					   {std::string("sentmillis"),
-					    std::string("timemillis"),
-					    std::string("value"),
-					    std::string("warmedup"),
-					    std::string("readtime")},
-					   {std::string("integer"),
-					    std::string("integer"),
-					    std::string("numeric"),
-					    std::string("bool"),
-					    std::string("timestamptz")});
-			  db.append(tablename, sparsed);
+			    db.createTable(tablename, headers, types);
+			  db.append(tablename, sparsed, headers);
 			}
 		      std::stringstream tss;
 		      ss.swap(tss);
