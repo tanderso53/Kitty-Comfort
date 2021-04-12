@@ -64,6 +64,8 @@ namespace Filer
     void init(auth* a);
     void clear();
     int append(const std::string& table, std::istream& data);
+    int append(const std::string& table, std::istream& data,
+	       const svector& headers);
     bool tableExists(const std::string& table);
     int createTable(std::string table, svector headers,
 		    svector types);
