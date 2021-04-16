@@ -50,7 +50,7 @@ CC		=	arduino-cli
 CFLAGS		=	-b arduino:avr:uno
 
 # Main application src
-APP		=	kitycomfort
+APP		=	kittycomfort
 INOFILE		=	${SKETCHES}/${APP}.ino
 
 # Target to compile the sketch
