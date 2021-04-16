@@ -42,15 +42,16 @@ CPP		=	clang++
 CFLAGS		=	-std=c++17 -Wall
 LFLAGS		=	-lc -ljsoncpp -lpqxx
 APP		=	kittyfiler
-OBJ		=	kittyfiler.o connection.o database.o cli.o
+CPP_SRCS	=	kittyfiler.cpp connection.cpp database.cpp cli.cpp
+OBJ		=	$(CPP_SRCS:.cpp=.o)
 HPP		=	connection.hpp database.hpp handler.hpp
 HPP		+=	cli.hpp
 .PHONY: all clean
 
-%.o: %.cpp
+%.o: %.cpp $(HPP)
 	$(CPP) -c ${CFLAGS} -c -o $@ $<
 
-$(APP): $(OBJ) $(HPP)
+$(APP): $(OBJ)
 	$(CPP) ${CFLAGS} ${LFLAGS} -o $@ $(OBJ)
 
 all: $(APP)
