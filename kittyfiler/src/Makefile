@@ -38,23 +38,41 @@
 
 # Kittyfiler Makefile
 
+# BUILD SECTION
 CPP		=	clang++
-CFLAGS		=	-std=c++17 -Wall
-LFLAGS		=	-lc -ljsoncpp -lpqxx
+CFLAGS		=	-Wall -std=c++17
+LDFLAGS		=	-lc -ljsoncpp -lpq -lpqxx
+LDFLAGS		+=	-L/usr/local/lib
 APP		=	kittyfiler
 CPP_SRCS	=	kittyfiler.cpp connection.cpp database.cpp cli.cpp
-OBJ		=	$(CPP_SRCS:.cpp=.o)
+OBJS		=	$(CPP_SRCS:.cpp=.o)
 HPP		=	connection.hpp database.hpp handler.hpp
 HPP		+=	cli.hpp
-.PHONY: all clean
+LICENSE		=	../../LICENSE
+.PHONY: all clean install
 
 %.o: %.cpp $(HPP)
 	$(CPP) -c ${CFLAGS} -c -o $@ $<
 
-$(APP): $(OBJ)
-	$(CPP) ${CFLAGS} ${LFLAGS} -o $@ $(OBJ)
+$(APP): $(OBJS)
+	$(CPP) ${CFLAGS} ${LDFLAGS} -o $@ $(OBJS)
 
 all: $(APP)
 
 clean:
 	rm -f *.o ${APP}
+
+# INSTALL SECTION
+INSTALL=install
+INSTALL_PROGRAM=$(INSTALL)
+INSTALL_DATA=$(INSTALL) -m 644
+PREFIX=/usr/local
+BINDIR=$(PREFIX)/bin
+DATAROOTDIR=$(PREFIX)/share
+DATADIR=$(DATAROOTDIR)
+SYSCONFDIR=$(PREFIX)/etc
+DOCDIR=$(DATAROOTDIR)/doc/$(APP)
+
+install: $(all)
+	$(INSTALL_PROGRAM) $(APP) $(DESTDIR)$(BINDIR)/$(APP)
+	$(INSTALL_DATA) $(LICENSE) $(DESTDIR)$(DATADIR)/$(APP)/LICENSE
