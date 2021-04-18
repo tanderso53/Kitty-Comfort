@@ -44,9 +44,9 @@ CFLAGS		=	-Wall -std=c++17
 LDFLAGS		=	-lc -ljsoncpp -lpq -lpqxx
 LDFLAGS		+=	-L/usr/local/lib
 APP		=	kittyfiler
-CPP_SRCS	=	kittyfiler.cpp connection.cpp database.cpp cli.cpp
+CPP_SRCS	=	kittyfiler.cpp connection.cpp database.cpp cli.cpp app.cpp
 OBJS		=	$(CPP_SRCS:.cpp=.o)
-HPP		=	connection.hpp database.hpp handler.hpp
+HPP		=	connection.hpp database.hpp handler.hpp app.hpp
 HPP		+=	cli.hpp
 LICENSE		=	../../LICENSE
 .PHONY: all clean install

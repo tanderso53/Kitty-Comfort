@@ -39,71 +39,17 @@
 
 // kittyfiler.cpp
 
+#include "app.hpp"
 #include "connection.hpp"
 #include "database.hpp"
 #include "handler.hpp"
-#include "cli.hpp"
 #include <iostream>
-#include <fstream>
 #include <vector>
 #include <string>
 #include <sstream>
 #include <poll.h>
 #include <signal.h>
 #include <ctime>
-#include <filesystem>
-
-void printUsage(std::ostream& out)
-{
-  // Build usage form
-  Cli::Usage u;
-
-  u.addApp("kittyfiler");
-  std::string desc;
-  desc = "Command line program to read ammonia data from serial port";
-  desc += "and log to stdout, a file, or a database.";
-  u.addDescription(desc);
-  u.addUseCase({'p'},
-	       {std::make_pair('f',"<filename>")},
-	       {"<special>"});
-  u.addUseCase({'p','b'},
-	       {std::make_pair('f', "<filename>"),
-		std::make_pair('H', "<host>"),
-		std::make_pair('d', "<database>"),
-		std::make_pair('u', "<user>"),
-		std::make_pair('P', "<password>")},
-	       {"<special>"});
-  u.addUseCase({'h','L'}, {}, {});
-  u.addOption('p', "print raw json to stdout");
-  u.addOption('b', "send data to database. Requires connection options");
-  u.addOption('f', "write data as CSV to file <filename>. must be absolute");
-  u.addOption('H', "Hostname for database, only useful with -b");
-  u.addOption('d', "Database name for database, only useful with -b");
-  u.addOption('u', "User name for database, only useful with -b");
-  u.addOption('P', "Password for database, only useful with -b");
-  u.addOption('h', "Print this help message, then exit");
-  u.addOption('L', "Print licensing information, then exit");
-
-  // Print out the usage to given output
-  u.print(out);
-}
-
-void printLicense(std::ostream& out = std::cout)
-{
-  std::ifstream lfile;
-  std::filesystem::path p = "../../LICENSE";
-  lfile.open(std::filesystem::canonical(p));
-
-  while (!lfile.eof())
-    {
-      char license[128];
-      lfile.getline(license, 128);
-      out << license << std::endl;
-    }
-
-  out << std::endl;
-  lfile.close();
-}
 
 int main(int argc, char** argv)
 {
@@ -120,18 +66,19 @@ int main(int argc, char** argv)
       // Parse CLI arguments
       char oaList[] = {'f','H','d','u','P'};
       Cli::Args al(argc, argv, oaList, sizeof(oaList)/sizeof(oaList[0]));
+      Filer::App app(al);
 
       // If -h option is given, print usage and exit
       if (al.option('h'))
 	{
-	  printUsage(std::cout);
+	  Filer::App::printUsage(std::cout);
 	  return 0;
 	}
 
       // If -L option is given, print license information
       if (al.option('L'))
 	{
-	  printLicense();
+	  Filer::App::printLicense();
 	  return 0;
 	}
 
@@ -165,42 +112,14 @@ int main(int argc, char** argv)
 		      strftime(readTime, tbsize, "%m/%d/%Y %T %Z", ttm);
 		      std::string stringTime = readTime;
 		      if (al.option('p'))
-			std::cout << ss.str() << std::endl;
+			app.printOutput(ss);
 		      if (al.option('f'))
 			{
-			  std::ofstream ofile;
-			  ofile.open(al.optarg('f').c_str(),
-				     std::ofstream::out | std::ofstream::app);
-			  Filer::Conversion::jsonToCSV(ss, ofile);
+			  app.fileOutput(ss);
 			}
 		      if (al.option('b'))
 			{
-			  std::stringstream sparsed;
-			  Filer::auth a;
-			  if (al.option('d')) a.database = al.optarg('d');
-			  if (al.option('H')) a.host = al.optarg('H');
-			  if (al.option('u')) a.user = al.optarg('u');
-			  if (al.option('P')) a.password = al.optarg('P');
-			  ss.seekg(0);
-			  Filer::Conversion::jsonToCSV(ss, sparsed, stringTime);
-			  Filer::Database db(&a);
-			  std::string tablename = "kittyfiler.ammonia";
-
-			  Filer::Database::svector headers =
-			    {std::string("sentmillis"),
-			     std::string("timemillis"),
-			     std::string("value"),
-			     std::string("warmedup"),
-			     std::string("readtime")};
-			  Filer::Database::svector types =
-			    {std::string("bigint"),
-			     std::string("bigint"),
-			     std::string("numeric"),
-			     std::string("bool"),
-			     std::string("timestamptz")};
-			  if (!db.tableExists(tablename))
-			    db.createTable(tablename, headers, types);
-			  db.append(tablename, sparsed, headers);
+			  app.databaseOutput(ss, stringTime);
 			}
 		      std::stringstream tss;
 		      ss.swap(tss);
@@ -216,7 +135,7 @@ int main(int argc, char** argv)
 	}
       else
 	{
-	  printUsage(std::cout);
+	  Filer::App::printUsage(std::cout);
 	}
     }
   catch (std::exception& e)

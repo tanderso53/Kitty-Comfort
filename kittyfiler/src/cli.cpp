@@ -51,6 +51,23 @@ namespace Cli
     init(argc, argv);
   }
 
+  Args::Args(const Args& other)
+    :_options(other._options), _optsWithArgs(NULL),
+     _args(other._args), _optargs(other._optargs)
+  {
+    if (other._optsWithArgs)
+      _optsWithArgs = new ovector(*other._optsWithArgs);
+  }
+
+  Args::Args(Args&& other)
+    :_options(std::move(other._options)),
+     _optsWithArgs(other._optsWithArgs),
+     _args(std::move(other._args)),
+     _optargs(std::move(other._optargs))
+  {
+    other._optsWithArgs = NULL;
+  }
+
   Args::Args(int argc, char** argv, char* list, size_t lsize)
   {
     init(argc, argv, list, lsize);

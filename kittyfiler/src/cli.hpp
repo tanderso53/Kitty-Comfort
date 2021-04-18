@@ -60,6 +60,12 @@ namespace Cli
     /// and places them in containers
     Args(int argc, char** argv);
 
+    /// Copy constructor
+    Args(const Args& other);
+
+    /// Move constructor
+    Args(Args&& other);
+
     /// Initialization constructor parses arguments with some args
     /// set as option arguments
     Args(int argc, char** argv, char* list, size_t lsize);
