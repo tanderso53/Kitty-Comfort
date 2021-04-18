@@ -42,6 +42,9 @@
 CPP		=	clang++
 CFLAGS		=	-Wall -std=c++17
 LDFLAGS		=	-lc -ljsoncpp -lpq -lpqxx
+ifndef $(FREEBSD)
+LDFLAGS		+=	-lpq
+endif
 LDFLAGS		+=	-L/usr/local/lib
 APP		=	kittyfiler
 CPP_SRCS	=	kittyfiler.cpp connection.cpp database.cpp cli.cpp app.cpp

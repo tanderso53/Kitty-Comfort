@@ -41,6 +41,7 @@
 #include "app.hpp"
 #include "database.hpp"
 #include "connection.hpp"
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 
@@ -148,10 +149,12 @@ bool Filer::App::isInit()
 
 int Filer::App::printOutput(std::istream& instream)
 {
-  instream.seekg(0);
-
   while (!instream.eof())
-    std::cout << instream.get();
+    {
+      char c;
+      instream.get(c);
+      std::cout << c;
+    }
 
   std::cout << std::endl;
   return 0;

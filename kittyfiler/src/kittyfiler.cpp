@@ -112,14 +112,19 @@ int main(int argc, char** argv)
 		      strftime(readTime, tbsize, "%m/%d/%Y %T %Z", ttm);
 		      std::string stringTime = readTime;
 		      if (al.option('p'))
-			app.printOutput(ss);
+			{
+			  app.printOutput(ss);
+			  ss.seekg(0);
+			}
 		      if (al.option('f'))
 			{
 			  app.fileOutput(ss);
+			  ss.seekg(0);
 			}
 		      if (al.option('b'))
 			{
 			  app.databaseOutput(ss, stringTime);
+			  ss.seekg(0);
 			}
 		      std::stringstream tss;
 		      ss.swap(tss);
