@@ -149,14 +149,21 @@ bool Filer::App::isInit()
 
 int Filer::App::printOutput(std::istream& instream)
 {
-  while (!instream.eof())
+  while (instream.good())
     {
       char c;
       instream.get(c);
       std::cout << c;
+      instream.peek();
     }
 
-  std::cout << std::endl;
+  if (instream.bad())
+    {
+      std::string err = "In Filer::App::printOutput: ";
+      err += "Stream passed to printOutput is mangled";
+      throw std::runtime_error(err);
+    }
+
   return 0;
 }
 

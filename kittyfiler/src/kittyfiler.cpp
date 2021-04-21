@@ -111,6 +111,7 @@ int main(int argc, char** argv)
 		      ttm = localtime(&tt);
 		      strftime(readTime, tbsize, "%m/%d/%Y %T %Z", ttm);
 		      std::string stringTime = readTime;
+		      ss.seekg(0);
 		      if (al.option('p'))
 			{
 			  app.printOutput(ss);

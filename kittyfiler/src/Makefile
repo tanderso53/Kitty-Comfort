@@ -41,8 +41,8 @@
 # BUILD SECTION
 CPP		=	clang++
 CFLAGS		=	-Wall -std=c++17
-LDFLAGS		=	-lc -ljsoncpp -lpq -lpqxx
-ifndef $(FREEBSD)
+LDFLAGS		=	-lc -ljsoncpp -lpqxx
+ifdef $(FREEBSD)
 LDFLAGS		+=	-lpq
 endif
 LDFLAGS		+=	-L/usr/local/lib
