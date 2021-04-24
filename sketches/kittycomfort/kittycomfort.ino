@@ -207,7 +207,7 @@ DataStructure::DataStructure(const DataStructure& ds)
 	_timemillises(new unsigned long[_vsize]),
 	_warmedups(new bool[_vsize])
 {
-	for (int i = 0; i < ds._size; i++)
+	for (size_t i = 0; i < ds._size; i++)
 		{
 			_values[i] = ds._values[i];
 			_timemillises[i] = ds._timemillises[i];
@@ -282,7 +282,7 @@ void DataStructure::addData(double value, unsigned long tmillis,
 String DataStructure::jsonDataString()
 {
 	String output = "\"data\": [";
-	for (int i = 0; i < size(); i++)
+	for (size_t i = 0; i < size(); i++)
 		{
 			output += "{\"value\": ";
 			output += value(i);
@@ -323,6 +323,41 @@ AmmoniaSensor as(apin, dpin);
 SoftwareSerial bt(btrx, bttx);
 DataStructure ds(1 + transmitDelay / readoutDelay);
 
+void readData()
+{
+	if (millis() > as.lastRead() + readoutDelay)
+		{
+			// If time to read, read the ammonia
+			ds.addData(as.readCounts(), millis(), as.isWarmedUp());
+		}
+}
+
+bool checkCommand(Stream& s)
+{
+	if (s.available())
+		{
+			if (s.readBytesUntil('\n', readBuffer, 8) > 3)
+				{
+					char progCmd[] = {'p', 'r', 'o'};
+					if (matchCommand(progCmd, readBuffer))
+						toggle(progMode);
+					return true;
+				}
+		}
+	return false;
+}	
+
+void outputData(Stream& s)
+{
+	if (millis() > lastTransmit + transmitDelay)
+		{
+			// Print Json to output
+			s.print(ds.jsonFullString());
+			ds.clear();
+			lastTransmit = millis();
+		}
+}
+
 void setup()
 {
 	as.init();
@@ -336,15 +371,7 @@ void setup()
 void loop()
 {
 	// Check if there is a command in the serial buffer
-	if (Serial.available())
-		{
-			if (Serial.readBytesUntil('\n', readBuffer, 8) > 3)
-				{
-					char progCmd[] = {'p', 'r', 'o'};
-					if (matchCommand(progCmd, readBuffer))
-						toggle(progMode);
-				}
-		}
+	if (!checkCommand(Serial)) checkCommand(bt);
 
 	if (progMode)
 		{
@@ -355,19 +382,8 @@ void loop()
 	// Read and output data
 	else
 		{
-			if (millis() > as.lastRead() + readoutDelay)
-				{
-					// If time to read, read the ammonia
-					ds.addData(as.readCounts(), millis(), as.isWarmedUp());
-				}
-
-			if (millis() > lastTransmit + transmitDelay)
-				{
-					// Print Json to output
-					if (Serial) Serial.println(ds.jsonFullString());
-					if (bt) bt.print(ds.jsonFullString());
-					ds.clear();
-          lastTransmit = millis();
-				}
+			readData();
+			outputData(bt);
+			outputData(Serial);
 		}
 }
