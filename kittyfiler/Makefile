@@ -38,32 +38,45 @@
 
 # Kittyfiler Makefile
 
+srcdir		=	./src
+OBJDIR		:=	./objdir
+
 # BUILD SECTION
-CPP		=	clang++
+CXX		=	clang++
 CFLAGS		=	-Wall -std=c++17
-LDFLAGS		=	-lc -ljsoncpp -lpqxx
+LDLIBS		=	-lc -ljsoncpp -lpqxx
 ifdef $(FREEBSD)
-LDFLAGS		+=	-lpq
+LDLIBS		+=	-lpq
 endif
 LDFLAGS		+=	-L/usr/local/lib
 APP		=	kittyfiler
-CPP_SRCS	=	kittyfiler.cpp connection.cpp database.cpp cli.cpp app.cpp
-OBJS		=	$(CPP_SRCS:.cpp=.o)
+CXX_SRCS	=	kittyfiler.cpp connection.cpp database.cpp cli.cpp app.cpp
+CXX_OBJS	=	$(addprefix $(OBJDIR)/,$(CXX_SRCS:.cpp=.o))
+OBJS		:=	$(CXX_OBJS)
 HPP		=	connection.hpp database.hpp handler.hpp app.hpp
 HPP		+=	cli.hpp
 LICENSE		=	../../LICENSE
 .PHONY: all clean install
 
-%.o: %.cpp $(HPP)
-	$(CPP) -c ${CFLAGS} -c -o $@ $<
+$(OBJDIR)/%.o: $(srcdir)/%.cpp $(addprefix $(srcdir)/,$(HPP))
+	@echo "*** BUILDING $@ ***"
+	$(CXX) -c ${CFLAGS} -c -o $@ $<
 
 $(APP): $(OBJS)
-	$(CPP) ${CFLAGS} ${LDFLAGS} -o $@ $(OBJS)
+	@echo "*** BUILDING $@ ***"
+	$(CXX) ${CFLAGS} ${LDFLAGS} ${LDLIBS} -o $@ $(OBJS)
+	@echo "Complete! Install with \"make install\""
 
 all: $(APP)
 
 clean:
-	rm -f *.o ${APP}
+	$(RM) $(APP)
+	$(RM) -R $(OBJDIR)
+
+$(OBJS): | $(OBJDIR)
+
+$(OBJDIR):
+	mkdir $(OBJDIR)
 
 # INSTALL SECTION
 INSTALL=install
@@ -76,6 +89,6 @@ DATADIR=$(DATAROOTDIR)
 SYSCONFDIR=$(PREFIX)/etc
 DOCDIR=$(DATAROOTDIR)/doc/$(APP)
 
-install: $(all)
+install: all
 	$(INSTALL_PROGRAM) $(APP) $(DESTDIR)$(BINDIR)/$(APP)
 	$(INSTALL_DATA) $(LICENSE) $(DESTDIR)$(DATADIR)/$(APP)/LICENSE
