@@ -44,6 +44,8 @@
 #include <SparkFunCCS811.h>
 #include <Wire.h>
 
+#define CCS811_ADDR 0x5B
+
 class AmmoniaSensor
 {
  private:
@@ -172,7 +174,6 @@ unsigned long transmitDelay = 60000; // in ms
 unsigned long lastTransmit = 0;
 AmmoniaSensor as(apin, dpin);
 SoftwareSerial bt(btrx, bttx);
-DataStructure ds(1 + transmitDelay / readoutDelay);
 CCS811 myCCS811(CCS811_ADDR);
 BME280 myBME280;
 
@@ -254,10 +255,8 @@ void outputJson(Stream& s)
 	outputStatus(s);
 
 	// Output data object
-	outputDataHeader();
+	outputDataHeader(s);
 	outputData("ammonia", as.readCounts(), s, "counts");
-	s.print(", ");
-	outputData("isWarmedUp", as.isWarmedUp(), s);
 	s.print(", ");
 	outputData("temp", myBME280.readTempC(), s, "degC");
 	s.print(", ");
@@ -280,7 +279,7 @@ void outputJson(Stream& s)
 			s.print(", ");
 			outputData("tvoc", myCCS811.getTVOC(), s, "ppb");
 		}
-	outputDataFooter();
+	outputDataFooter(s);
 
 	// End json object
 	s.print("}");
