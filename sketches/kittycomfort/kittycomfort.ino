@@ -40,6 +40,10 @@
 // kittycomfort.ino
 
 #include <SoftwareSerial.h>
+#include <SparkFunBME280.h>
+#include <SparkFunCCS811.h>
+#include <Wire.h>
+
 class AmmoniaSensor
 {
  private:
@@ -154,165 +158,12 @@ void toggle(bool& reg)
 	else reg = 1;
 }
 
-String jsonBuildHeader()
-{
-	String output = "{\"project\": \"kittycomfort\",";
-	output += "\"sentmillis\": ";
-	output += millis();
-	return output;
-}
-
-String jsonBuildFooter(String eot = String('\n'))
-{
-	String output = "\"EOT\": true}";
-	output += eot;
-	return output;
-}
-
-// Place data stored in memory here for asyncronous upload
-class DataStructure
-{
- private:
-	size_t _vsize;
-	size_t _size;
-	double* _values;
-	unsigned long* _timemillises;
-	bool* _warmedups;
-
- public:
-	DataStructure(size_t vsize);
-	DataStructure(const DataStructure& ds);
-	DataStructure(DataStructure&& ds);
-	~DataStructure();
-	void init();
-	void clear();
-	size_t vsize() {return _vsize;}
-	size_t size() {return _size;}
-	double value(unsigned int element);
-	unsigned long timemillis(unsigned int element);
-	bool warmedup(unsigned int element);
-	void addData(double value, unsigned long tmillis, bool warm);
-	String jsonDataString();
-	String jsonFullString();
-};
-
-DataStructure::DataStructure(size_t vsize)
-:_vsize(vsize), _size(0)
-{
-	init();
-}
-
-DataStructure::DataStructure(const DataStructure& ds)
-:_vsize(ds._vsize), _size(ds._size), _values(new double[_vsize]),
-	_timemillises(new unsigned long[_vsize]),
-	_warmedups(new bool[_vsize])
-{
-	for (size_t i = 0; i < ds._size; i++)
-		{
-			_values[i] = ds._values[i];
-			_timemillises[i] = ds._timemillises[i];
-			_warmedups[i] = ds._warmedups[i];
-		}
-}
-
-DataStructure::DataStructure(DataStructure&& ds)
-:_vsize(ds.vsize()), _size(ds.size()), _values(ds._values),
-	_timemillises(ds._timemillises), _warmedups(ds._warmedups)
-{
-	ds._vsize = 0;
-	ds._size = 0;
-	ds._values = NULL;
-	ds._timemillises = NULL;
-	ds._warmedups = NULL;
-}
-
-DataStructure::~DataStructure()
-{
-	delete [] _values;
-	delete [] _timemillises;
-	delete [] _warmedups;
-}
-
-void DataStructure::init()
-{
-	_values = new double[_vsize];
-	_timemillises = new unsigned long[_vsize];
-	_warmedups = new bool[_vsize];
-}
-
-void DataStructure::clear()
-{
-	delete [] _values;
-	delete [] _timemillises;
-	delete [] _warmedups;
-  _size = 0;
-	init();
-}
-
-inline double DataStructure::value(unsigned int element)
-{
-	if (element < vsize()) return _values[element];
-	else return 0;
-}
-
-inline unsigned long DataStructure::timemillis(unsigned int element)
-{
-	if (element < vsize()) return _timemillises[element];
-	else return 0;
-}
-
-inline bool DataStructure::warmedup(unsigned int element)
-{
-	if (element < vsize()) return _warmedups[element];
-	else return 0;
-}
-
-void DataStructure::addData(double value, unsigned long tmillis,
-														bool warm)
-{
-	if (size() < vsize())
-		{
-			_values[size()] = value;
-			_timemillises[size()] = tmillis;
-			_warmedups[size()] = warm;
-      _size++;
-		}
-}
-
-String DataStructure::jsonDataString()
-{
-	String output = "\"data\": [";
-	for (size_t i = 0; i < size(); i++)
-		{
-			output += "{\"value\": ";
-			output += value(i);
-			output += ",\"timemillis\": ";
-			output += timemillis(i);
-			output += ",\"iswarmedup\": ";
-      if (warmedup(i)) output += "true";
-			else output += "false";
-			output += "}";
-			if (i < size() -1) output += ",";
-		}
-	output += "]";
-	return output;
-}
-
-String DataStructure::jsonFullString()
-{
-	String output = jsonBuildHeader();
-	output += ",";
-	output += jsonDataString();
-	output += ",";
-	output += jsonBuildFooter();
-	return output;
-}
-
 // Globals
 const int apin = A0;
 const int dpin = 13;
 const int btrx = 4;
 const int bttx = 6;
+byte loopStatus = 0;
 bool progMode = 0;
 char readBuffer[8];
 //char transBuffer[64];
@@ -322,14 +173,16 @@ unsigned long lastTransmit = 0;
 AmmoniaSensor as(apin, dpin);
 SoftwareSerial bt(btrx, bttx);
 DataStructure ds(1 + transmitDelay / readoutDelay);
+CCS811 myCCS811(CCS811_ADDR);
+BME280 myBME280;
 
-void readData()
+bool readData()
 {
 	if (millis() > as.lastRead() + readoutDelay)
 		{
-			// If time to read, read the ammonia
-			ds.addData(as.readCounts(), millis(), as.isWarmedUp());
+			return true;
 		}
+	return false;
 }
 
 bool checkCommand(Stream& s)
@@ -345,24 +198,124 @@ bool checkCommand(Stream& s)
 				}
 		}
 	return false;
-}	
+}
 
-void outputData(Stream& s)
+/// Print Status Object
+void outputStatus(Stream& s)
 {
-	if (millis() > lastTransmit + transmitDelay)
+	s.print("\"status\": [");
+	s.print("\"isWarmedUp\": ");
+	if (as.isWarmedUp()) s.print("true");
+	else s.print("false");
+	s.print(", \"CCS811\": \"");
+	if (myCCS811.checkForStatusError())
+		s.print(myCCS811.getErrorRegister());
+	else s.print("ok");
+	s.print("\", \"sentmillis\": ");
+	s.print(millis());
+	s.print("]");
+}
+
+/// Print Json object that will contain data arrays
+void outputDataHeader(Stream& s)
+{
+	s.print("\"data\": [");
+}
+
+/// Print Closing bracket on the data object
+void outputDataFooter(Stream& s)
+{
+	s.print("]");
+}
+
+/// Print out data as Json array of keys
+template <class T>
+void outputData(const char* name, T data, Stream& s,
+								const char* unit)
+{
+	// Print Json to output
+	s.print("{\"name\": \"");
+	s.print(name);
+	s.print("\", \"value\": ");
+	s.print(data);
+	s.print(", \"timemillis\": ");
+	s.print(millis());
+	s.print(", \"unit\": \"");
+	s.print(unit);
+	s.print("\"}");
+}
+
+void outputJson(Stream& s)
+{
+	// Begin json output
+	s.print("{");
+
+	// Output status object
+	outputStatus(s);
+
+	// Output data object
+	outputDataHeader();
+	outputData("ammonia", as.readCounts(), s, "counts");
+	s.print(", ");
+	outputData("isWarmedUp", as.isWarmedUp(), s);
+	s.print(", ");
+	outputData("temp", myBME280.readTempC(), s, "degC");
+	s.print(", ");
+	outputData("pressure", myBME280.readFloatPressure(),
+						 s, "pa");
+	s.print(", ");
+	outputData("altitude",
+						 myBME280.readFloatAltitudeMeters(),
+						 s, "m");
+	s.print(", ");
+	outputData("rh", myBME280.readFloatHumidity(),
+						 s, "%");
+	if (myCCS811.dataAvailable())
 		{
-			// Print Json to output
-			s.print(ds.jsonFullString());
-			ds.clear();
-			lastTransmit = millis();
+			myCCS811.setEnvironmentalData(myBME280.readFloatHumidity(),
+																		myBME280.readTempC());
+			myCCS811.readAlgorithmResults();
+			s.print(", ");
+			outputData("co2", myCCS811.getCO2(), s, "ppm");
+			s.print(", ");
+			outputData("tvoc", myCCS811.getTVOC(), s, "ppb");
 		}
+	outputDataFooter();
+
+	// End json object
+	s.print("}");
+	s.print('\n');
 }
 
 void setup()
 {
 	as.init();
 	Serial.begin(9600);
-	Serial.println(as.readCounts());
+	// Serial.println(as.readCounts());
+
+	// Begin I2C
+	Wire.begin();
+
+  // This begins the CCS811 sensor and prints error status of
+  // .beginWithStatus()
+  CCS811Core::CCS811_Status_e returnCode = myCCS811.beginWithStatus();
+
+  // Initialize BME280
+  // For I2C, enable the following and disable the SPI section
+  myBME280.settings.commInterface = I2C_MODE;
+  myBME280.settings.I2CAddress = 0x77;
+  myBME280.settings.runMode = 3; //Normal mode
+  myBME280.settings.tStandby = 0;
+  myBME280.settings.filter = 4;
+  myBME280.settings.tempOverSample = 5;
+  myBME280.settings.pressOverSample = 5;
+  myBME280.settings.humidOverSample = 5;
+
+  // Calling .begin() causes the settings to be loaded Make sure
+	// sensor had enough time to turn on. BME280 requires 2ms to start
+	// up.
+  delay(10); 
+  myBME280.begin();
 
 	// Set up bluetooth
 	bt.begin(115200);
@@ -382,8 +335,10 @@ void loop()
 	// Read and output data
 	else
 		{
-			readData();
-			outputData(bt);
-			outputData(Serial);
+			if (readData())
+				{
+					outputJson(Serial);
+					outputJson(bt);
+				}
 		}
 }
