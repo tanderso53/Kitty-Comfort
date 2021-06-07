@@ -45,6 +45,8 @@
 #include <Wire.h>
 
 #define CCS811_ADDR 0x5B
+#define INT_PIN 2
+#define WAK_PIN 3
 
 class AmmoniaSensor
 {
@@ -204,7 +206,7 @@ bool checkCommand(Stream& s)
 /// Print Status Object
 void outputStatus(Stream& s)
 {
-	s.print("\"status\": [");
+	s.print("\"status\": {");
 	s.print("\"isWarmedUp\": ");
 	if (as.isWarmedUp()) s.print("true");
 	else s.print("false");
@@ -214,7 +216,7 @@ void outputStatus(Stream& s)
 	else s.print("ok");
 	s.print("\", \"sentmillis\": ");
 	s.print(millis());
-	s.print("]");
+	s.print("}");
 }
 
 /// Print Json object that will contain data arrays
@@ -254,6 +256,9 @@ void outputJson(Stream& s)
 	// Output status object
 	outputStatus(s);
 
+  // Separator between status and data
+  s.print(", ");
+
 	// Output data object
 	outputDataHeader(s);
 	outputData("ammonia", as.readCounts(), s, "counts");
@@ -292,6 +297,11 @@ void setup()
 	Serial.begin(9600);
 	// Serial.println(as.readCounts());
 
+  // Setup WAK and INT pins
+  pinMode(WAK_PIN, OUTPUT);
+  digitalWrite(WAK_PIN, LOW);
+  pinMode(INT_PIN, INPUT);
+
 	// Begin I2C
 	Wire.begin();
 
@@ -323,7 +333,7 @@ void setup()
 void loop()
 {
 	// Check if there is a command in the serial buffer
-	if (!checkCommand(Serial)) checkCommand(bt);
+	if (!checkCommand(Serial)); //checkCommand(bt);
 
 	if (progMode)
 		{
