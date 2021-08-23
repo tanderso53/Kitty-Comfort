@@ -102,7 +102,7 @@ int main(int argc, char** argv)
 	}
 
       // If there no arguments given, print usage and exit
-      if (al.size() == 1)
+      if (al.size() != 1)
 	{
 	  Filer::App::printUsage(std::cout);
 	  return 0;
