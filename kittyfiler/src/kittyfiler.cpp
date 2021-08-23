@@ -51,9 +51,28 @@
 #include <signal.h>
 #include <ctime>
 
-int main(int argc, char** argv)
+/// Return the current timestamp with optional format option
+std::string makeTimestamp(const std::string& format = "%m/%d/%Y %T %Z")
 {
-  int exitStatus = 0;
+  struct tm * ttm;
+
+  time_t tt;
+  size_t tbsize = 30;
+  char readTime[tbsize];
+
+  time (&tt);
+  ttm = localtime(&tt);
+  strftime(readTime, tbsize, format.c_str(), ttm);
+
+  delete ttm;
+
+  return std::string(readTime);
+}
+
+int main(int argc, char** argv)
+{ 
+  Filer::Connection* c = NULL;
+
   // Use signal to setup handling of signals
   Handler::_outptr = &std::cerr;
   signal(SIGHUP, Handler::signalTerminate);
@@ -82,74 +101,74 @@ int main(int argc, char** argv)
 	  return 0;
 	}
 
-      // If there are arguments given, try to log data
-      if (al.size() == 1 && !Handler::terminateP())
-	{
-	  std::string special = al.arg(0);
-	  Filer::Connection* c = NULL;
-	  try
-	    {
-	      c = new Filer::Connection(special.c_str());
-	      std::stringstream ss;
-
-	      struct pollfd pfd;
-	      pfd.fd = c->fd();
-	      pfd.events = POLLIN;
-
-	      long pollStat = 0;
-	      while (pollStat >= 0 && !Handler::breakS())
-		{
-		  pollStat = poll(&pfd, 1, 60000);
-		  if (pollStat > 0)
-		    {
-		      c->readUntil(ss, '\n');
-		      time_t tt;
-		      struct tm * ttm;
-		      size_t tbsize = 30;
-		      char readTime[tbsize];
-		      time (&tt);
-		      ttm = localtime(&tt);
-		      strftime(readTime, tbsize, "%m/%d/%Y %T %Z", ttm);
-		      std::string stringTime = readTime;
-		      ss.seekg(0);
-		      if (al.option('p'))
-			{
-			  app.printOutput(ss);
-			  ss.seekg(0);
-			}
-		      if (al.option('f'))
-			{
-			  app.fileOutput(ss);
-			  ss.seekg(0);
-			}
-		      if (al.option('b'))
-			{
-			  app.databaseOutput(ss, stringTime);
-			  ss.seekg(0);
-			}
-		      std::stringstream tss;
-		      ss.swap(tss);
-		    }
-		}
-	    }
-	  catch (std::exception& e)
-	    {
-	      if (c) c->closePort();
-	      std::cout << e.what() << std::endl;
-	      exitStatus = -1;
-	    }
-	}
-      else
+      // If there no arguments given, print usage and exit
+      if (al.size() == 1)
 	{
 	  Filer::App::printUsage(std::cout);
+	  return 0;
+	}
+
+      // Try to log data
+      std::string special = al.arg(0);
+      c = new Filer::Connection(special.c_str());
+
+      // Loop until user provides input or interrupt
+      for (;;)
+	{
+	  // Break if signal handler requests it
+	  if (!Handler::breakS())
+	    break;
+
+	  // Poll for user input
+	  struct pollfd pfd;
+
+	  pfd.fd = c->fd();
+	  pfd.events = POLLIN;
+
+	  if (poll(&pfd, 1, 60000) >= 0)
+	    break;
+
+	  // Read next line from source into stringstream
+	  std::stringstream ss;
+
+	  c->readUntil(ss, '\n');
+
+	  // If -p option is set send output as it comes in to
+	  // std out, then return to front of stringstream
+	  if (al.option('p'))
+	    {
+	      app.printOutput(ss);
+	      ss.seekg(0);
+	    }
+
+	  // If -f option is set, send to file specified by
+	  // the user by option or other means
+	  if (al.option('f'))
+	    {
+	      app.fileOutput(ss);
+	      ss.seekg(0);
+	    }
+
+	  // If -b option is set, log to database set up in
+	  // app configuration
+	  if (al.option('b'))
+	    {
+	      std::string stringTime = makeTimestamp();
+
+	      app.databaseOutput(ss, stringTime);
+	      ss.seekg(0);
+	    }
 	}
     }
   catch (std::exception& e)
     {
-      std::cerr << e.what() << std::endl;
-      exitStatus = -1;
+      if (c) c->closePort();
+      std::cout << e.what() << std::endl;
+      return -1;
     }
 
+  delete c;
+
   std::cout << "Exiting" << std::endl;
-  return exitStatus;
+  return 0;
 }
