@@ -39,7 +39,14 @@
 
 // kittycomfort.ino
 
+#define ARDUINO_APOLLO3_SFE_ARTEMIS_NANO
+
+#ifndef ARDUINO_APOLLO3_SFE_ARTEMIS_NANO
 #include <SoftwareSerial.h>
+#endif
+#ifdef ARDUINO_APOLLO3_SFE_ARTEMIS_NANO
+#include <ArduinoBLE.h>
+#endif
 #include <SparkFunBME280.h>
 #include <SparkFunCCS811.h>
 #include <Wire.h>
@@ -48,10 +55,74 @@
 #define INT_PIN 2
 #define WAK_PIN 3
 
+#ifdef ARDUINO_APOLLO3_SFE_ARTEMIS_NANO
+
+ // BLE Battery Service
+BLEService btService("19B10000-E8F2-537E-4C6C-D104768A1214");
+
+// BLE Custom UUID for ammonia
+BLEUnsignedCharCharacteristic ammoniaChar("19B10001-E9F2-537E-4F6C-D104768F1215",
+    BLERead | BLENotify); // remote clients will be able to get notifications if this characteristic changes
+
+// Create descriptor for characteristic
+BLEDescriptor ammoniaDesc("2901", "ammonia");
+
+void updateBT(byte valuebuf)
+{
+  /* unsigned int btlen = sizeof(value) / sizeof(char); */
+  /* if (btlen > 512) */
+  /* { */
+  /*   btlen = 512; */
+  /* } */
+  /* byte valuebuf[btlen]; */
+  /* for (int i =0; i < btlen; i++) */
+  /* { */
+  /*   valuebuf[i] = value[i]; */
+
+  /*   if (valuebuf[i] == '\0') */
+  /*   { */
+  /*     btlen = i + 1; */
+  /*     break; */
+  /*   } */
+  /* } */
+  /* Read the current voltage level on the A0 analog input pin.
+     This is used here to simulate the charge level of a battery.
+  */
+	ammoniaChar.writeValue(valuebuf);  // and update the battery level characteristic
+}
+
+int startBLE()
+{
+	if (!BLE.begin()) {
+		return -1;
+  }
+
+  /* Set a local name for the BLE device
+     This name will appear in advertising packets
+     and can be used by remote devices to identify this BLE device
+     The name can be changed but maybe be truncated based on space left in advertisement packet
+  */
+  BLE.setLocalName("Kitty Comfort");
+  BLE.setAdvertisedService(btService); // add the service UUID
+  btService.addCharacteristic(ammoniaChar); // add the battery level characteristic
+  BLE.addService(btService); // Add the battery service
+	ammoniaChar.addDescriptor(ammoniaDesc);
+  //ammoniaChar.writeValue('0'); // set initial value for this characteristic
+
+  /* Start advertising BLE.  It will start continuously transmitting BLE
+     advertising packets and will be visible to remote BLE central devices
+     until it receives a new connection */
+
+  // start advertising
+  BLE.advertise();
+	return 0;
+}
+#endif
+
 class AmmoniaSensor
 {
  private:
-	int _apin = A0;
+	int _apin = A3;
 	int _dpin = 13;
 	int _slope = 1;
 	int _intercept = 0;
@@ -104,7 +175,7 @@ uint16_t AmmoniaSensor::readCounts()
 	if (_init)
 		{
 			updateTimer(_lastRead);
-			return analogRead(_apin);
+			return analogRead(A3);
 		}
 	else return -1;
 }
@@ -163,7 +234,7 @@ void toggle(bool& reg)
 }
 
 // Globals
-const int apin = A0;
+const int apin = A3;
 const int dpin = 13;
 const int btrx = 4;
 const int bttx = 6;
@@ -175,7 +246,9 @@ unsigned long readoutDelay = 10000; // in ms
 unsigned long transmitDelay = 60000; // in ms
 unsigned long lastTransmit = 0;
 AmmoniaSensor as(apin, dpin);
+#ifndef ARDUINO_APOLLO3_SFE_ARTEMIS_NANO
 SoftwareSerial bt(btrx, bttx);
+#endif
 CCS811 myCCS811(CCS811_ADDR);
 BME280 myBME280;
 
@@ -326,8 +399,15 @@ void setup()
   delay(10); 
   myBME280.begin();
 
+  #ifndef ARDUINO_APOLLO3_SFE_ARTEMIS_NANO
 	// Set up bluetooth
 	bt.begin(115200);
+  #endif
+
+	#ifdef ARDUINO_APOLLO3_SFE_ARTEMIS_NANO
+	// Start BLE module
+	startBLE();
+	#endif
 }
 
 void loop()
@@ -347,7 +427,18 @@ void loop()
 			if (readData())
 				{
 					outputJson(Serial);
+          #ifndef ARDUINO_APOLLO3_SFE_ARTEMIS_NANO
 					outputJson(bt);
+          #endif
+					#ifdef ARDUINO_APOLLO3_SFE_ARTEMIS_NANO
+          BLEDevice central = BLE.central();
+          String ammbuff("ammonia: " + String(as.readCounts(), DEC)
+          + ",time: " + String(millis(), DEC));
+					updateBT((byte) as.readCounts());
+          //while (central.connected())
+          //{
+          //}
+					#endif
 				}
 		}
 }
