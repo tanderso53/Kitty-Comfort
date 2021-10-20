@@ -39,12 +39,14 @@
 
 // kittycomfort.ino
 
-#define ARDUINO_APOLLO3_SFE_ARTEMIS_NANO
+//#ifdef ARDUINO_APOLLO3_SFE_ARTEMIS_NANO
+#define SF_ARTEMIS
+//#endif
 
-#ifndef ARDUINO_APOLLO3_SFE_ARTEMIS_NANO
+#ifndef SF_ARTEMIS
 #include <SoftwareSerial.h>
 #endif
-#ifdef ARDUINO_APOLLO3_SFE_ARTEMIS_NANO
+#ifdef SF_ARTEMIS
 #include <ArduinoBLE.h>
 #endif
 #include <SparkFunBME280.h>
@@ -55,19 +57,42 @@
 #define INT_PIN 2
 #define WAK_PIN 3
 
-#ifdef ARDUINO_APOLLO3_SFE_ARTEMIS_NANO
+#ifdef SF_ARTEMIS
 
- // BLE Battery Service
-BLEService btService("19B10000-E8F2-537E-4C6C-D104768A1214");
+// Main BLE service id
+#define KC_CHAR_BLE_SID "19B10000-E8F2-537E-4C6C-D104768A1214"
+
+// List of all the things we will measure
+#define KC_CHAR_AMMONIA "19B10000-E8F2-537E-4C6C-D104768A1215"
+#define KC_CHAR_TEMP "19B10000-E8F2-537E-4C6C-D104768A1216"
+#define KC_CHAR_HUMIDITY "19B10000-E8F2-537E-4C6C-D104768A1217"
+#define KC_CHAR_CO2 "19B10000-E8F2-537E-4C6C-D104768A1218"
+
+// BLE Battery Service
+BLEService btService(KC_CHAR_BLE_SID);
 
 // BLE Custom UUID for ammonia
-BLEUnsignedCharCharacteristic ammoniaChar("19B10001-E9F2-537E-4F6C-D104768F1215",
-    BLERead | BLENotify); // remote clients will be able to get notifications if this characteristic changes
+BLEDoubleCharacteristic ammoniaChar[] = {
+	BLEDoubleCharacteristic(KC_CHAR_AMMONIA,
+													BLERead | BLENotify),
+	BLEDoubleCharacteristic(KC_CHAR_TEMP,
+													BLERead | BLENotify),
+	BLEDoubleCharacteristic(KC_CHAR_HUMIDITY,
+													BLERead | BLENotify),
+	BLEDoubleCharacteristic(KC_CHAR_CO2,
+													BLERead | BLENotify)
+}; // remote clients will be able to get notifications if this characteristic changes
 
 // Create descriptor for characteristic
-BLEDescriptor ammoniaDesc("2901", "ammonia");
+BLEDescriptor ammoniaDesc[] = {
+	BLEDescriptor("2901", "Ammonia (counts)"),
+	BLEDescriptor("2901", "Temp (deg C)"),
+	BLEDescriptor("2901", "Humidity (%)"),
+	BLEDescriptor("2901", "CO2 (ppm)")
+};
 
-void updateBT(byte valuebuf)
+template <typename T>
+bool updateBT(T _valuebuf, BLEDoubleCharacteristic& _blech)
 {
   /* unsigned int btlen = sizeof(value) / sizeof(char); */
   /* if (btlen > 512) */
@@ -88,7 +113,16 @@ void updateBT(byte valuebuf)
   /* Read the current voltage level on the A0 analog input pin.
      This is used here to simulate the charge level of a battery.
   */
-	ammoniaChar.writeValue(valuebuf);  // and update the battery level characteristic
+
+	double _newvalue = (double) _valuebuf;
+	double _lastvalue = _blech.value();
+
+	if (((long) (_newvalue * 100) != ((long) (_lastvalue * 100)))) {
+		_blech.writeValue(_newvalue);  // and update the battery level characteristic
+		return true;
+	}
+
+	return false;
 }
 
 int startBLE()
@@ -104,9 +138,19 @@ int startBLE()
   */
   BLE.setLocalName("Kitty Comfort");
   BLE.setAdvertisedService(btService); // add the service UUID
-  btService.addCharacteristic(ammoniaChar); // add the battery level characteristic
-  BLE.addService(btService); // Add the battery service
-	ammoniaChar.addDescriptor(ammoniaDesc);
+
+	// Loop through all characteristics, adding them to the service
+	for (int i = 0; i < sizeof(ammoniaChar)/sizeof(BLEDoubleCharacteristic); ++i) {
+		btService.addCharacteristic(ammoniaChar[i]);
+
+		// Assign Descriptor
+		ammoniaChar[i].addDescriptor(ammoniaDesc[i]);
+
+		// Set initial value
+		ammoniaChar[i].writeValue(0.0);
+	}
+
+	BLE.addService(btService); // Add the battery service
   //ammoniaChar.writeValue('0'); // set initial value for this characteristic
 
   /* Start advertising BLE.  It will start continuously transmitting BLE
@@ -246,7 +290,7 @@ unsigned long readoutDelay = 10000; // in ms
 unsigned long transmitDelay = 60000; // in ms
 unsigned long lastTransmit = 0;
 AmmoniaSensor as(apin, dpin);
-#ifndef ARDUINO_APOLLO3_SFE_ARTEMIS_NANO
+#ifndef SF_ARTEMIS
 SoftwareSerial bt(btrx, bttx);
 #endif
 CCS811 myCCS811(CCS811_ADDR);
@@ -396,15 +440,15 @@ void setup()
   // Calling .begin() causes the settings to be loaded Make sure
 	// sensor had enough time to turn on. BME280 requires 2ms to start
 	// up.
-  delay(10); 
+  delay(10);
   myBME280.begin();
 
-  #ifndef ARDUINO_APOLLO3_SFE_ARTEMIS_NANO
+  #ifndef SF_ARTEMIS
 	// Set up bluetooth
 	bt.begin(115200);
   #endif
 
-	#ifdef ARDUINO_APOLLO3_SFE_ARTEMIS_NANO
+	#ifdef SF_ARTEMIS
 	// Start BLE module
 	startBLE();
 	#endif
@@ -427,18 +471,26 @@ void loop()
 			if (readData())
 				{
 					outputJson(Serial);
-          #ifndef ARDUINO_APOLLO3_SFE_ARTEMIS_NANO
+
+#ifndef SF_ARTEMIS
 					outputJson(bt);
-          #endif
-					#ifdef ARDUINO_APOLLO3_SFE_ARTEMIS_NANO
+#endif
+
+#ifdef SF_ARTEMIS
           BLEDevice central = BLE.central();
-          String ammbuff("ammonia: " + String(as.readCounts(), DEC)
-          + ",time: " + String(millis(), DEC));
-					updateBT((byte) as.readCounts());
+
+					//String ammbuff("ammonia: " + String(as.readCounts(), DEC)
+          //+ ",time: " + String(millis(), DEC));
+
+					updateBT(as.readCounts(), ammoniaChar[0]); // Ammonia
+					updateBT(myBME280.readTempC(), ammoniaChar[1]); // Temp deg C
+					updateBT(myBME280.readFloatHumidity(), ammoniaChar[2]); // Humidity
+					updateBT(myCCS811.getCO2(), ammoniaChar[3]); // CO2
+
           //while (central.connected())
           //{
           //}
-					#endif
+#endif
 				}
 		}
 }
