@@ -1,22 +1,21 @@
 #! /usr/bin/python3
 
-import pygatt
+from gattlib import DiscoveryService
+from gattlib import GATTRequester, GATTResponse
 
-adapter = pygatt.GATTToolBackend()
+service = DiscoveryService("hci0")
+devices = service.discovery(2)
 
-def print_data(handle, value):
-    """
-    Print data to stdout
-    handle -- characteristic read handle
-    value -- bytearray from peripheral
-    """
-    print("Received data %d" % value)
+for address, name in devices.items():
+    print("name: {}, address: {}".format(name, address))
 
-try:
-    adapter.start()
-    device = adapter.connect('0c:32:43:93:84:sd')
-    device.subscribe("19B10000-E8F2-537E-4C6C-D104768A1215",
-                     callback=print_data)
+class NotifyYourValue(GATTResponse):
+    def on_response(self, value):
+        print("value: {}".format(value))
 
-finally:
-    adapter.stop()
+response = NotifyYourValue()
+req = GATTRequester("0c:38:f8:32:3c:55")
+req.read_by_uuid_async("19B10000-E8F2-537E-4C6C-D104768A1215", response)
+
+while True:
+    sleep(1)
