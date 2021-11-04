@@ -14,7 +14,7 @@ class NotifyYourValue(GATTResponse):
         print("value: {}".format(value))
 
 response = NotifyYourValue()
-req = GATTRequester("0c:38:f8:32:3c:55")
+req = GATTRequester("C0:CC:D9:C9:2C:07")
 req.read_by_uuid_async("19B10000-E8F2-537E-4C6C-D104768A1215", response)
 
 while True:
