@@ -39,8 +39,8 @@
 
 // kittycomfort.ino
 
-#include <arduino_secrets.h>
-#include <ammoniasensor.h>
+#include "arduino_secrets.h"
+#include "ammoniasensor.h"
 
 #include <WiFiNINA.h>
 #include <WiFiUdp.h>
@@ -255,7 +255,8 @@ void setup()
   myBME280.begin();
 
 	// WiFi initiallization
-	for (unsigned long i = 0; i < millis() + wifiCheckDelay; i = millis())
+  unsigned long stmillis = millis();
+	for (unsigned long i = 0; i < stmillis + wifiCheckDelay; i = millis())
 	{
 		if (WiFi.begin(ssid, pass) == WL_CONNECTED)
 		{

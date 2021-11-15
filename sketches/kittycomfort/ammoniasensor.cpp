@@ -39,7 +39,7 @@
 
 // ammoniasensor.cpp
 
-#include <ammoniasensor.h>
+#include "ammoniasensor.h"
 
 AmmoniaSensor::AmmoniaSensor()
 {
