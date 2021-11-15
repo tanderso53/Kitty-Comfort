@@ -90,8 +90,8 @@ CCS811 myCCS811(CCS811_ADDR);
 BME280 myBME280;
 
 // Globals -- WiFi
-char ssid[] = "SECRET_SSID";
-char pass[] = "SECRET_PASS";
+char ssid[] = SECRET_SSID;
+char pass[] = SECRET_PASS;
 unsigned long wifiCheckDelay = 10000; // in ms
 unsigned long wifiLastCheck = 0; // in ms
 WiFiUDP Udp;
@@ -133,6 +133,10 @@ void outputStatus(Stream& s)
 	if (myCCS811.checkForStatusError())
 		s.print(myCCS811.getErrorRegister());
 	else s.print("ok");
+  s.print("\", \"localIP\": \"");
+  if ((regStatus & REG_STATUS_WIFI) == REG_STATUS_WIFI)
+    s.print(WiFi.localIP());
+  else s.print("\"....");
 	s.print("\", \"sentmillis\": ");
 	s.print(millis());
 	s.print("}");
@@ -257,6 +261,7 @@ void setup()
 	// WiFi initiallization
   unsigned long stmillis = millis();
 	for (unsigned long i = 0; i < stmillis + wifiCheckDelay; i = millis())
+  //for (;;)
 	{
 		if (WiFi.begin(ssid, pass) == WL_CONNECTED)
 		{
@@ -291,7 +296,7 @@ void loop()
 	// Manage WiFi interface
 	if (WiFi.status() != WL_CONNECTED && (regStatus & REG_STATUS_WIFI) == REG_STATUS_WIFI)
 	{
-		regStatus == regStatus & (~REG_STATUS_WIFI) & (~REG_STATUS_UDP);
+		regStatus = regStatus & (~REG_STATUS_WIFI) & (~REG_STATUS_UDP);
 		Serial.println("WiFi Disconnected");
 	}
 
@@ -309,6 +314,7 @@ void loop()
 		{
 			Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
 			outputJson(Udp);
+      Udp.endPacket();
 		}
 	}
 	else if (millis() > wifiCheckDelay + wifiLastCheck)
