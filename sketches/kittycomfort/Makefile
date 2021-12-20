@@ -36,36 +36,53 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-# Top-level Makefile for Kittycomfort and Kittyfiler
+# Makefile for building, checking, and uploading
+# Arduino Sketches
 #
 
-.PHONY: all kittycomfort kittyfiler install-kittycomfort install-kittyfiler install clean
+srcdir		=	.
 
-kcdir		=	./sketches/kittycomfort
-kfdir		=	./kittyfiler
+# Arduino config
+ALOCALDIR	=	$(HOME)/.arduino15
+APKGDIR		=	$(ALOCALDIR)/packages
+ALIBPATH	=	$(HOME)/Arduino/libraries
 
-all: kittycomfort kittyfiler
+# Compiler settings
+ARDUINO		=	arduino-builder
+AFLAGS		=	-hardware $(APKGDIR)/arduino/hardware \
+			-tools $(APKGDIR)/arduino/tools \
+			-libraries $(ALIBPATH)
+AFQBN		=	samd:1.8.11:nano_33_iot
+builddir	:=	./build
 
-kittycomfort:
-	@echo "@@@@@@@@@@ BUILDING $@ @@@@@@@@@@"
-	$(MAKE) -e -C $(kcdir)
+# Main application src
+APP		=	kittycomfort
+ASRCS		=	${APP}.ino
+AEXTRASRCS	=	arduino_secrets.h ammoniasensor.cpp ammoniasensor.h
+ELFS		:=	$(addprefix $(builddir)/, $(ASRCS:.ino=.elf))
 
-kittyfiler:
-	@echo "@@@@@@@@@@ BUILDING $@ @@@@@@@@@@"
-	$(MAKE) -e -C $(kfdir)
+# Target to compile the sketch
 
-install: install-kittycomfort install-kittyfiler
+.PHONY: all install clean
 
-install-kittycomfort:
-	@echo "@@@@@@@@@@ INSTALLING $@ @@@@@@@@@@"
-	$(MAKE) -e -C $(kcdir) install
+all:
 
-install-kittyfiler:
-	@echo "@@@@@@@@@@ INSTALLING $@ @@@@@@@@@@"
-	$(MAKE) -e -C $(kfdir) install
+$(APP): $(ELFS)
+	touch $(APP)
+
+$(buildir)/%.elf: $(addprefix $(srcdir)/, %.ino $(AEXTRASRCS))
+	@echo "*** Building $@ ***"
+	$(ARDUINO) -compile -fqbn $(AFQBN) $(AFLAGS) \
+		-build-path $(builddir) $<
+
+$(ELFS): | $(builddir)
+
+$(builddir):
+	mkdir -p $(builddir)
+
+install:
+	@echo "Install for sketches not yet implemented"
 
 clean:
-	@echo "@@@@@@@@@@ CLEANING KITTYCOMFORT @@@@@@@@@@"
-	$(MAKE) -e -C $(kcdir) clean
-	@echo "@@@@@@@@@@ CLEANING KITTYFILER @@@@@@@@@@"
-	$(MAKE) -e -C $(kfdir) clean
+	$(RM) -R $(builddir)
+	$(RM) $(APP)
