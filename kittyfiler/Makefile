@@ -45,9 +45,9 @@ OBJDIR		:=	./objdir
 CXX		=	clang++
 CFLAGS		=	-Wall -std=c++17
 LDLIBS		=	-lc -ljsoncpp -lpqxx
-ifdef $(FREEBSD)
+#ifdef $(FREEBSD)
 LDLIBS		+=	-lpq
-endif
+#endif
 LDFLAGS		+=	-L/usr/local/lib
 APP		=	kittyfiler
 CXX_SRCS	=	kittyfiler.cpp connection.cpp database.cpp cli.cpp app.cpp

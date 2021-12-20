@@ -14,7 +14,7 @@ filing program.
 ## License ##
 
 Kitty Comfort is copyright Tyler J. Anderson, 2021, but is Free and
-Open Source Software under the BSD 2-clause license. Source code from
+Open Source Software under the BSD 3-clause license. Source code from
 other Free and Open Source project was also used in Kitty Comfort and
 Kitty Filer under the terms of the licenses of the respective
 subcomponents. See LICENSE for details.
