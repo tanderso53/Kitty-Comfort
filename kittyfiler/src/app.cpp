@@ -188,22 +188,30 @@ int Filer::App::databaseOutput(std::istream& instream,
   instream.seekg(0);
   Filer::Conversion::jsonToCSV(instream, sparsed, stringTime);
   Filer::Database db(&a);
-  std::string tablename = "kittyfiler.ammonia";
+  std::string tablename = "kittyfiler.sensorreadings";
 
   Filer::Database::svector headers =
     {std::string("sentmillis"),
      std::string("timemillis"),
+     std::string("name"),
      std::string("value"),
+     std::string("unit"),
      std::string("warmedup"),
      std::string("readtime")};
+
   Filer::Database::svector types =
     {std::string("bigint"),
      std::string("bigint"),
+     std::string("text"),
      std::string("numeric"),
+     std::string("text"),
      std::string("bool"),
      std::string("timestamptz")};
+
   if (!db.tableExists(tablename))
     db.createTable(tablename, headers, types);
+
   db.append(tablename, sparsed, headers);
+
   return 0;
 }

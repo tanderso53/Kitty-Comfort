@@ -38,10 +38,13 @@
 // connection.cpp
 
 #include "connection.hpp"
+#include "jsonparse.h"
+
 #include <cstring>
 #include <unistd.h>
 #include <fcntl.h>
 #include <json/json.h>
+#include <assert.h>
 
 namespace Filer
 {
@@ -49,22 +52,49 @@ namespace Filer
 			    std::ostream& ofile,
 			    std::ostream& err)
   {
+    struct datafield* df = NULL;
+
     try
       {
+	char buf[2056];
 	Json::Value v;
-	jsonstring >> v;
-	Json::Value& data = v["data"];
-	for (uint i = 0; i < data.size(); i++)
-	  {
-	    Json::Value& d = data[i];
-	    ofile << v["sentmillis"] << ","
-		  << d["timemillis"] << ","
-		  << d["value"] << ","
-		  << d["iswarmedup"] << std::endl;
-	  }
+
+	jsonstring >> buf;
+
+	// Sentmillis and warm up doesn't change per row, so only read
+	// once
+	v = buf;
+	Json::Value& vw = v["status"]["isWarmedUp"];
+	assert(vw.isBool());
+	Json::Value& vm = v["status"]["sentmillis"];
+	assert(vm.isInt());
+
+	// Add data for each field as csv row
+	initializeData(buf);
+	df = getDataDump(df);
+
+	if (!df) {
+	  err << "Failed to parse json data object\n";
+	  return -1;
+	}
+
+	for (int i = 0; i < numDataFields(); ++i) {
+	  ofile << vm.asInt() << ","
+		<< df->time << ","
+		<< df->name << ","
+		<< df->value << ","
+		<< df->unit << ","
+		<< vw.asBool() << '\n';
+	}
+
+	clearData();
       }
     catch (Json::Exception& e)
       {
+	if (df) {
+	  clearData();
+	}
+
 	err << "Failed to parse Json string with "
 	    << e.what() << std::endl;
 	return -1;
@@ -77,23 +107,50 @@ namespace Filer
 			    const std::string& readtime,
 			    std::ostream& err)
   {
+    struct datafield* df = NULL;
+
     try
       {
+	char buf[2056];
 	Json::Value v;
-	jsonstring >> v;
-	Json::Value& data = v["data"];
-	for (uint i = 0; i < data.size(); i++)
-	  {
-	    Json::Value& d = data[i];
-	    ofile << v["sentmillis"] << ","
-		  << d["timemillis"] << ","
-		  << d["value"] << ","
-		  << d["iswarmedup"] << ","
-		  << readtime << std::endl;
-	  }
+
+	jsonstring >> buf;
+
+	// Sentmillis and warm up doesn't change per row, so only read
+	// once
+	v = buf;
+	Json::Value& vw = v["status"]["isWarmedUp"];
+	assert(vw.isBool());
+	Json::Value& vm = v["status"]["sentmillis"];
+	assert(vm.isInt());
+
+	// Add data for each field as csv row
+	initializeData(buf);
+	df = getDataDump(df);
+
+	if (!df) {
+	  err << "Failed to parse json data object\n";
+	  return -1;
+	}
+
+	for (int i = 0; i < numDataFields(); ++i) {
+	  ofile << vm.asInt() << ","
+		<< df->time << ","
+		<< df->name << ","
+		<< df->value << ","
+		<< df->unit << ","
+		<< vw.asBool() << ","
+		<< readtime << '\n';
+	}
+
+	clearData();
       }
     catch (Json::Exception& e)
       {
+	if (df) {
+	  clearData();
+	}
+
 	err << "Failed to parse Json string with "
 	    << e.what() << std::endl;
 	return -1;
