@@ -39,106 +39,24 @@
 
 // kittycomfort.ino
 
-#include <SoftwareSerial.h>
-class AmmoniaSensor
-{
- private:
-	int _apin = A0;
-	int _dpin = 13;
-	int _slope = 1;
-	int _intercept = 0;
-	int _mult = 1;
-	bool _init = 0;
-	unsigned long _lastRead = 0;
-	unsigned long _lastCheck = 0;
-	unsigned long _warmUpTime = 86400000; // 24 hrs
+#include "arduino_secrets.h"
+#include "ammoniasensor.h"
 
- protected:
-	void updateTimer(unsigned long& timer);
+#include <WiFiNINA.h>
+#include <WiFiUdp.h>
+#include <SparkFunBME280.h>
+#include <SparkFunCCS811.h>
+#include <Wire.h>
 
- public:
-	AmmoniaSensor();
-	AmmoniaSensor(int apin, int dpin);
-	AmmoniaSensor(int apin, int dpin, int warmUptTime);
-	void init();
-	uint16_t readCounts();
-	bool checkAlarm();
-	void calibrate(int highCount, int highValue, int lowCount,
-								 int lowValue, int mult);
-	double readValue();
-	unsigned long lastRead() {return _lastRead;}
-	unsigned long lastCheck() {return _lastCheck;}
-	bool isWarmedUp();
-};
+#define CCS811_ADDR 0x5B
+#define INT_PIN 2
+#define WAK_PIN 3
+#define LISTEN_PORT 2391
 
-AmmoniaSensor::AmmoniaSensor()
-{
-}
-
-AmmoniaSensor::AmmoniaSensor(int apin, int dpin)
-:_apin(apin), _dpin(dpin)
-{
-}
-
-AmmoniaSensor::AmmoniaSensor(int apin, int dpin, int warmUpTime)
-:_apin(apin), _dpin(dpin), _warmUpTime(warmUpTime)
-{
-}
-
-void AmmoniaSensor::init()
-{
-	pinMode(_dpin, INPUT);
-	_init = 1;
-}
-
-uint16_t AmmoniaSensor::readCounts()
-{
-	if (_init)
-		{
-			updateTimer(_lastRead);
-			return analogRead(_apin);
-		}
-	else return -1;
-}
-
-void AmmoniaSensor::updateTimer(unsigned long& timer)
-{
-	timer = millis();
-}
-
-bool AmmoniaSensor::checkAlarm()
-{
-	if (_init)
-		{
-			updateTimer(_lastCheck);
-			return digitalRead(_dpin);
-		}
-	else return 1;
-}
-
-void AmmoniaSensor::calibrate(int highCount, int highValue,
-															int lowCount, int lowValue, int mult)
-{
-	highValue = highValue * mult;
-	lowValue = lowValue * mult;
-	_slope =  (highValue - lowValue) / (highCount - lowCount);
-	_intercept = highValue - _slope * highCount;
-	_mult = mult;
-}
-
-double AmmoniaSensor::readValue()
-{
-	if (_init)
-		return (readCounts() * _slope - _intercept) / _mult;
-	else
-		return 0.0;
-}
-
-bool AmmoniaSensor::isWarmedUp()
-{
-	if (millis() > _warmUpTime) return 1;
-	else return 0;
-}
+// Status Register Definitions
+#define REG_STATUS_OK 0x0001
+#define REG_STATUS_WIFI 0x0002
+#define REG_STATUS_UDP 0x0004
 
 bool matchCommand(char* match, char* source)
 {
@@ -154,165 +72,13 @@ void toggle(bool& reg)
 	else reg = 1;
 }
 
-String jsonBuildHeader()
-{
-	String output = "{\"project\": \"kittycomfort\",";
-	output += "\"sentmillis\": ";
-	output += millis();
-	return output;
-}
-
-String jsonBuildFooter(String eot = String('\n'))
-{
-	String output = "\"EOT\": true}";
-	output += eot;
-	return output;
-}
-
-// Place data stored in memory here for asyncronous upload
-class DataStructure
-{
- private:
-	size_t _vsize;
-	size_t _size;
-	double* _values;
-	unsigned long* _timemillises;
-	bool* _warmedups;
-
- public:
-	DataStructure(size_t vsize);
-	DataStructure(const DataStructure& ds);
-	DataStructure(DataStructure&& ds);
-	~DataStructure();
-	void init();
-	void clear();
-	size_t vsize() {return _vsize;}
-	size_t size() {return _size;}
-	double value(unsigned int element);
-	unsigned long timemillis(unsigned int element);
-	bool warmedup(unsigned int element);
-	void addData(double value, unsigned long tmillis, bool warm);
-	String jsonDataString();
-	String jsonFullString();
-};
-
-DataStructure::DataStructure(size_t vsize)
-:_vsize(vsize), _size(0)
-{
-	init();
-}
-
-DataStructure::DataStructure(const DataStructure& ds)
-:_vsize(ds._vsize), _size(ds._size), _values(new double[_vsize]),
-	_timemillises(new unsigned long[_vsize]),
-	_warmedups(new bool[_vsize])
-{
-	for (size_t i = 0; i < ds._size; i++)
-		{
-			_values[i] = ds._values[i];
-			_timemillises[i] = ds._timemillises[i];
-			_warmedups[i] = ds._warmedups[i];
-		}
-}
-
-DataStructure::DataStructure(DataStructure&& ds)
-:_vsize(ds.vsize()), _size(ds.size()), _values(ds._values),
-	_timemillises(ds._timemillises), _warmedups(ds._warmedups)
-{
-	ds._vsize = 0;
-	ds._size = 0;
-	ds._values = NULL;
-	ds._timemillises = NULL;
-	ds._warmedups = NULL;
-}
-
-DataStructure::~DataStructure()
-{
-	delete [] _values;
-	delete [] _timemillises;
-	delete [] _warmedups;
-}
-
-void DataStructure::init()
-{
-	_values = new double[_vsize];
-	_timemillises = new unsigned long[_vsize];
-	_warmedups = new bool[_vsize];
-}
-
-void DataStructure::clear()
-{
-	delete [] _values;
-	delete [] _timemillises;
-	delete [] _warmedups;
-  _size = 0;
-	init();
-}
-
-inline double DataStructure::value(unsigned int element)
-{
-	if (element < vsize()) return _values[element];
-	else return 0;
-}
-
-inline unsigned long DataStructure::timemillis(unsigned int element)
-{
-	if (element < vsize()) return _timemillises[element];
-	else return 0;
-}
-
-inline bool DataStructure::warmedup(unsigned int element)
-{
-	if (element < vsize()) return _warmedups[element];
-	else return 0;
-}
-
-void DataStructure::addData(double value, unsigned long tmillis,
-														bool warm)
-{
-	if (size() < vsize())
-		{
-			_values[size()] = value;
-			_timemillises[size()] = tmillis;
-			_warmedups[size()] = warm;
-      _size++;
-		}
-}
-
-String DataStructure::jsonDataString()
-{
-	String output = "\"data\": [";
-	for (size_t i = 0; i < size(); i++)
-		{
-			output += "{\"value\": ";
-			output += value(i);
-			output += ",\"timemillis\": ";
-			output += timemillis(i);
-			output += ",\"iswarmedup\": ";
-      if (warmedup(i)) output += "true";
-			else output += "false";
-			output += "}";
-			if (i < size() -1) output += ",";
-		}
-	output += "]";
-	return output;
-}
-
-String DataStructure::jsonFullString()
-{
-	String output = jsonBuildHeader();
-	output += ",";
-	output += jsonDataString();
-	output += ",";
-	output += jsonBuildFooter();
-	return output;
-}
-
-// Globals
-const int apin = A0;
+// Globals -- General
+uint16_t regStatus = 0;
+const int apin = A3;
 const int dpin = 13;
 const int btrx = 4;
 const int bttx = 6;
+byte loopStatus = 0;
 bool progMode = 0;
 char readBuffer[8];
 //char transBuffer[64];
@@ -320,16 +86,25 @@ unsigned long readoutDelay = 10000; // in ms
 unsigned long transmitDelay = 60000; // in ms
 unsigned long lastTransmit = 0;
 AmmoniaSensor as(apin, dpin);
-SoftwareSerial bt(btrx, bttx);
-DataStructure ds(1 + transmitDelay / readoutDelay);
+CCS811 myCCS811(CCS811_ADDR);
+BME280 myBME280;
 
-void readData()
+// Globals -- WiFi
+char ssid[] = SECRET_SSID;
+char pass[] = SECRET_PASS;
+unsigned long wifiCheckDelay = 10000; // in ms
+unsigned long wifiLastCheck = 0; // in ms
+WiFiUDP Udp;
+//char udpPacketBuffer[256];
+//char udpSendBuffer[512];
+
+bool readData()
 {
 	if (millis() > as.lastRead() + readoutDelay)
 		{
-			// If time to read, read the ammonia
-			ds.addData(as.readCounts(), millis(), as.isWarmedUp());
+			return true;
 		}
+	return false;
 }
 
 bool checkCommand(Stream& s)
@@ -345,33 +120,163 @@ bool checkCommand(Stream& s)
 				}
 		}
 	return false;
-}	
+}
 
-void outputData(Stream& s)
+/// Print Status Object
+void outputStatus(Stream& s)
 {
-	if (millis() > lastTransmit + transmitDelay)
+	s.print("\"status\": {");
+	s.print("\"isWarmedUp\": ");
+	if (as.isWarmedUp()) s.print("true");
+	else s.print("false");
+	s.print(", \"CCS811\": \"");
+	if (myCCS811.checkForStatusError())
+		s.print(myCCS811.getErrorRegister());
+	else s.print("ok");
+  s.print("\", \"localIP\": \"");
+  if ((regStatus & REG_STATUS_WIFI) == REG_STATUS_WIFI)
+    s.print(WiFi.localIP());
+  else s.print("\"....");
+	s.print("\", \"sentmillis\": ");
+	s.print(millis());
+	s.print("}");
+}
+
+/// Print Json object that will contain data arrays
+void outputDataHeader(Stream& s)
+{
+	s.print("\"data\": [");
+}
+
+/// Print Closing bracket on the data object
+void outputDataFooter(Stream& s)
+{
+	s.print("]");
+}
+
+/// Print out data as Json array of keys
+template <class T>
+void outputData(const char* name, T data, Stream& s,
+								const char* unit)
+{
+	// Print Json to output
+	s.print("{\"name\": \"");
+	s.print(name);
+	s.print("\", \"value\": ");
+	s.print(data);
+	s.print(", \"timemillis\": ");
+	s.print(millis());
+	s.print(", \"unit\": \"");
+	s.print(unit);
+	s.print("\"}");
+}
+
+void outputJson(Stream& s)
+{
+	// Begin json output
+	s.print("{");
+
+	// Output status object
+	outputStatus(s);
+
+  // Separator between status and data
+  s.print(", ");
+
+	// Output data object
+	outputDataHeader(s);
+	outputData("ammonia", as.readCounts(), s, "counts");
+	s.print(", ");
+	outputData("temp", myBME280.readTempC(), s, "degC");
+	s.print(", ");
+	outputData("pressure", myBME280.readFloatPressure(),
+						 s, "pa");
+	s.print(", ");
+	outputData("altitude",
+						 myBME280.readFloatAltitudeMeters(),
+						 s, "m");
+	s.print(", ");
+	outputData("rh", myBME280.readFloatHumidity(),
+						 s, "%");
+	if (myCCS811.dataAvailable())
 		{
-			// Print Json to output
-			s.print(ds.jsonFullString());
-			ds.clear();
-			lastTransmit = millis();
+			myCCS811.setEnvironmentalData(myBME280.readFloatHumidity(),
+																		myBME280.readTempC());
+			myCCS811.readAlgorithmResults();
+			s.print(", ");
+			outputData("co2", myCCS811.getCO2(), s, "ppm");
+			s.print(", ");
+			outputData("tvoc", myCCS811.getTVOC(), s, "ppb");
 		}
+	outputDataFooter(s);
+
+	// End json object
+	s.print("}");
+	s.print('\n');
+}
+
+void startUDP()
+{
+	regStatus = regStatus | REG_STATUS_WIFI;
+	Serial.println("WiFi connected");
+	Serial.print("IP: ");
+	Serial.println(WiFi.localIP());
+	Udp.begin(LISTEN_PORT);
 }
 
 void setup()
 {
 	as.init();
 	Serial.begin(9600);
-	Serial.println(as.readCounts());
+	// Serial.println(as.readCounts());
 
-	// Set up bluetooth
-	bt.begin(115200);
+  // Setup WAK and INT pins
+  pinMode(WAK_PIN, OUTPUT);
+  digitalWrite(WAK_PIN, LOW);
+  pinMode(INT_PIN, INPUT);
+
+	// Begin I2C
+	Wire.begin();
+
+  // This begins the CCS811 sensor and prints error status of
+  // .beginWithStatus()
+  CCS811Core::CCS811_Status_e returnCode = myCCS811.beginWithStatus();
+
+  // Initialize BME280
+  // For I2C, enable the following and disable the SPI section
+  myBME280.settings.commInterface = I2C_MODE;
+  myBME280.settings.I2CAddress = 0x77;
+  myBME280.settings.runMode = 3; //Normal mode
+  myBME280.settings.tStandby = 0;
+  myBME280.settings.filter = 4;
+  myBME280.settings.tempOverSample = 5;
+  myBME280.settings.pressOverSample = 5;
+  myBME280.settings.humidOverSample = 5;
+
+  // Calling .begin() causes the settings to be loaded Make sure
+	// sensor had enough time to turn on. BME280 requires 2ms to start
+	// up.
+  delay(10);
+  myBME280.begin();
+
+	// WiFi initiallization
+  unsigned long stmillis = millis();
+	for (unsigned long i = 0; i < stmillis + wifiCheckDelay; i = millis())
+  //for (;;)
+	{
+		if (WiFi.begin(ssid, pass) == WL_CONNECTED)
+		{
+			startUDP();
+			break;
+		}
+	}
 }
 
 void loop()
 {
 	// Check if there is a command in the serial buffer
-	if (!checkCommand(Serial)) checkCommand(bt);
+	if (!checkCommand(Serial)); //checkCommand(bt);
+
+	bool rd = readData();
 
 	if (progMode)
 		{
@@ -382,8 +287,43 @@ void loop()
 	// Read and output data
 	else
 		{
-			readData();
-			outputData(bt);
-			outputData(Serial);
+			if (rd)
+				{
+					outputJson(Serial);
+				}
 		}
+
+	// Manage WiFi interface
+	if (WiFi.status() != WL_CONNECTED && (regStatus & REG_STATUS_WIFI) == REG_STATUS_WIFI)
+	{
+		regStatus = regStatus & (~REG_STATUS_WIFI) & (~REG_STATUS_UDP);
+		Serial.println("WiFi Disconnected");
+	}
+
+	if ((regStatus & REG_STATUS_WIFI) == REG_STATUS_WIFI)
+	{
+		int psize = Udp.parsePacket();
+
+		if (psize)
+		{
+			regStatus = regStatus | REG_STATUS_UDP;
+			Udp.flush();
+		}
+
+		if ((regStatus & REG_STATUS_UDP) == REG_STATUS_UDP && rd)
+		{
+			Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
+			outputJson(Udp);
+      Udp.endPacket();
+		}
+	}
+	else if (millis() > wifiCheckDelay + wifiLastCheck)
+	{
+		if (WiFi.begin(ssid, pass) == WL_CONNECTED)
+		{
+			startUDP();
+		}
+
+		wifiLastCheck = millis();
+	}
 }
