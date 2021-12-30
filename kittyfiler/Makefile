@@ -43,18 +43,19 @@ OBJDIR		:=	./objdir
 
 # BUILD SECTION
 CXX		=	clang++
-CFLAGS		=	-Wall -std=c++17
+CFLAGS		=	-Wall -std=c++17 -I/usr/local/include
 LDLIBS		=	-lc -ljsoncpp -lpqxx
 #ifdef $(FREEBSD)
 LDLIBS		+=	-lpq
 #endif
 LDFLAGS		+=	-L/usr/local/lib
 APP		=	kittyfiler
-CXX_SRCS	=	kittyfiler.cpp connection.cpp database.cpp cli.cpp app.cpp
+CXX_SRCS	=	kittyfiler.cpp connection.cpp database.cpp \
+			cli.cpp app.cpp jsonparse.cpp
 CXX_OBJS	=	$(addprefix $(OBJDIR)/,$(CXX_SRCS:.cpp=.o))
 OBJS		:=	$(CXX_OBJS)
 HPP		=	connection.hpp database.hpp handler.hpp app.hpp
-HPP		+=	cli.hpp
+HPP		+=	cli.hpp jsonparse.h
 LICENSE		=	../../LICENSE
 .PHONY: all clean install
 
