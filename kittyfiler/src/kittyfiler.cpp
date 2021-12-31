@@ -102,36 +102,52 @@ int main(int argc, char** argv)
 	}
 
       // If there no arguments given, print usage and exit
-      if (al.size() != 1)
+      if (al.size() == 0)
 	{
 	  Filer::App::printUsage(std::cout);
 	  return 0;
 	}
 
       // Try to log data
-      std::string special = al.arg(0);
-      c = new Filer::Connection(special.c_str());
+      if (al.option('U')) {
+	connectDeviceUDP(al.arg(0).c_str(), al.arg(1).c_str());
+      }
+      else {
+	std::string special = al.arg(0);
+	c = new Filer::Connection(special.c_str());
+      }
 
       // Loop until user provides input or interrupt
       for (;;)
 	{
+	  // Read next line from source into stringstream
+	  std::stringstream ss;
+
 	  // Break if signal handler requests it
 	  if (!Handler::breakS())
 	    break;
 
 	  // Poll for user input
-	  struct pollfd pfd;
+	  if (al.option('U')) {
+	    char ubuf[2056];
 
-	  pfd.fd = c->fd();
-	  pfd.events = POLLIN;
+	    if (pollDeviceRead(ubuf, sizeof(ubuf), 60000) != 0) {
+	      break;
+	    }
 
-	  if (poll(&pfd, 1, 60000) >= 0)
-	    break;
+	    ss.str(ubuf);
+	  }
+	  else {
+	    struct pollfd pfd;
 
-	  // Read next line from source into stringstream
-	  std::stringstream ss;
+	    pfd.fd = c->fd();
+	    pfd.events = POLLIN;
 
-	  c->readUntil(ss, '\n');
+	    if (poll(&pfd, 1, 60000) >= 0)
+	      break;
+
+	    c->readUntil(ss, '\n');
+	  }
 
 	  // If -p option is set send output as it comes in to
 	  // std out, then return to front of stringstream
@@ -159,10 +175,16 @@ int main(int argc, char** argv)
 	      ss.seekg(0);
 	    }
 	}
+
+      // Clean up UDP file descriptor
+      if (al.option('U')) {
+	disconnectDeviceUDP();
+      }
     }
   catch (std::exception& e)
     {
       if (c) c->closePort();
+      disconnectDeviceUDP();
       std::cout << e.what() << std::endl;
       return -1;
     }

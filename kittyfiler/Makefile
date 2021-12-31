@@ -42,26 +42,34 @@ srcdir		=	./src
 OBJDIR		:=	./objdir
 
 # BUILD SECTION
+CC		=	clang
 CXX		=	clang++
-CFLAGS		=	-Wall -std=c++17 -I/usr/local/include
-LDLIBS		=	-lc -ljsoncpp -lpqxx
+CFLAGS		+=	-Wall -I/usr/local/include
+CXXFLAGS	+=	-std=c++17
+LDLIBS		+=	-lc -ljsoncpp -lpqxx
 #ifdef $(FREEBSD)
 LDLIBS		+=	-lpq
 #endif
 LDFLAGS		+=	-L/usr/local/lib
 APP		=	kittyfiler
+C_SRCS		=	remote.c
 CXX_SRCS	=	kittyfiler.cpp connection.cpp database.cpp \
 			cli.cpp app.cpp jsonparse.cpp
+C_OBJS		=	$(addprefix $(OBJDIR)/,$(C_SRCS:.c=.o))
 CXX_OBJS	=	$(addprefix $(OBJDIR)/,$(CXX_SRCS:.cpp=.o))
-OBJS		:=	$(CXX_OBJS)
+OBJS		:=	$(C_OBJS) $(CXX_OBJS)
 HPP		=	connection.hpp database.hpp handler.hpp app.hpp
 HPP		+=	cli.hpp jsonparse.h
 LICENSE		=	../../LICENSE
 .PHONY: all clean install
 
+$(OBJDIR)/%.o: $(srcdir)/%.c $(addprefix $(srcdir)/,$(HPP))
+	@echo "*** BUILDING $@ ***"
+	$(CC) ${CFLAGS} -c -o $@ $<
+
 $(OBJDIR)/%.o: $(srcdir)/%.cpp $(addprefix $(srcdir)/,$(HPP))
 	@echo "*** BUILDING $@ ***"
-	$(CXX) -c ${CFLAGS} -c -o $@ $<
+	$(CXX) ${CFLAGS} $(CXXFLAGS) -c -o $@ $<
 
 $(APP): $(OBJS)
 	@echo "*** BUILDING $@ ***"

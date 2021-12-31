@@ -44,6 +44,13 @@
 #ifndef CONNECTION_HPP
 #define CONNECTION_HPP
 
+// connection functions from remote.c
+extern "C" {
+  int connectDeviceUDP(const char* address, const char* port);
+  int pollDeviceRead(char* buf, unsigned int len, int timeout);
+  int disconnectDeviceUDP();
+}
+
 namespace Filer
 {
   class Conversion
