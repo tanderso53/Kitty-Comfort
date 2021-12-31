@@ -65,7 +65,15 @@ void Filer::App::printUsage(std::ostream& out)
 		std::make_pair('u', "<user>"),
 		std::make_pair('P', "<password>")},
 	       {"<special>"});
+  u.addUseCase({'U', 'p','b'},
+	       {std::make_pair('f', "<filename>"),
+		std::make_pair('H', "<host>"),
+		std::make_pair('d', "<database>"),
+		std::make_pair('u', "<user>"),
+		std::make_pair('P', "<password>")},
+	       {"<address>", "<port>"});
   u.addUseCase({'h','L'}, {}, {});
+  u.addOption('U', "Obtain data from specified UDP port");
   u.addOption('p', "print raw json to stdout");
   u.addOption('b', "send data to database. Requires connection options");
   u.addOption('f', "write data as CSV to file <filename>. must be absolute");
