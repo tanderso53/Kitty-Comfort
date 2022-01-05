@@ -65,12 +65,12 @@ ELFS		:=	$(addprefix $(builddir)/, $(ASRCS:.ino=.elf))
 
 .PHONY: all install clean
 
-all:
+all: $(APP)
 
 $(APP): $(ELFS)
 	touch $(APP)
 
-$(buildir)/%.elf: $(addprefix $(srcdir)/, %.ino $(AEXTRASRCS))
+$(builddir)/%.elf: $(addprefix $(srcdir)/, %.ino $(AEXTRASRCS))
 	@echo "*** Building $@ ***"
 	$(ARDUINO) -compile -fqbn $(AFQBN) $(AFLAGS) \
 		-build-path $(builddir) $<
